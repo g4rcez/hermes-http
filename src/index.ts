@@ -1,23 +1,23 @@
 import QueryString from "query-string";
-import { isEmpty, resolveUrl } from "./utils";
 import Header from "./header";
 import {
 	Cache,
 	Credentials,
 	DownloadTracker,
 	ExecRequest,
+	FetchParseBodyMethods,
+	HermesConfig,
 	HttpClientReturn,
 	HttpMethods,
 	ModeRequest,
+	RawHeaders,
 	Redirect,
-	RequestConfig,
 	RequestInterceptors,
 	RequestParameters,
 	ResponseFetch,
-	ResponseInterceptors,
-	RawHeaders,
-	FetchParseBodyMethods
-} from "./hermes-http";
+	ResponseInterceptors
+} from "./hermes-http-types";
+import { isEmpty, resolveUrl } from "./utils";
 
 const timeoutError = {
 	data: null,
@@ -51,7 +51,7 @@ const defineParserFromMimeType = (value: string | undefined | null = ""): FetchP
 	return "blob";
 };
 
-const parseBodyRequest = (body: Object | any) => {
+const parseBodyRequest = (body: unknown | any) => {
 	if (body === undefined || body === null) {
 		return null;
 	}
@@ -61,7 +61,7 @@ const parseBodyRequest = (body: Object | any) => {
 	return body;
 };
 
-const getItem = (config: RequestConfig | undefined, item: keyof RequestConfig, def?: any) => config![item] ?? def;
+const getItem = (config: HermesConfig | undefined, item: keyof HermesConfig, def?: any) => config![item] ?? def;
 
 const mutateResponse = async <T extends Function>(response: ResponseFetch, interceptors: T[]): Promise<ResponseFetch> => {
 	for (const callback of interceptors) {
@@ -91,10 +91,10 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 						if (done) {
 							onDownloadProgress(
 								{
+									done,
 									percent: 1,
-									transferred: totalBytes,
 									total: totalBytes,
-									done
+									transferred: totalBytes
 								},
 								value
 							);
@@ -114,13 +114,13 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 	);
 };
 
-const HttpClient = (configuration: RequestConfig = {}) => {
+const HttpClient = (configuration: HermesConfig = {}) => {
 	let abortRequest = false;
 	const fetchInstance = getItem(configuration, "fetchInstance", fetch);
 	let throwOnHttpError = getItem(configuration, "throwOnHttpError", true);
-	let baseUrl = getItem(configuration, "baseUrl", "");
-	let globalTimeout = getItem(configuration, "timeout", 0);
-	let globalRetryCodes = getItem(configuration, "retryStatusCode", defaultStatusCodeRetry) as number[];
+	const baseUrl = getItem(configuration, "baseUrl", "");
+	const globalTimeout = getItem(configuration, "timeout", 0);
+	const globalRetryCodes = getItem(configuration, "retryStatusCode", defaultStatusCodeRetry) as number[];
 
 	const header = new Header(getItem(configuration, "headers", {}));
 
@@ -140,8 +140,8 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 		query = "",
 		signal,
 		onDownload
-	}: ExecRequest<T>): Promise<Response> => {
-		return new Promise(async (resolve, reject) => {
+	}: ExecRequest<T>): Promise<ResponseFetch> =>
+		new Promise(async (resolve, reject) => {
 			headers.forEach((value, key) => header.getHeaders().set(key, value));
 
 			let request = {
@@ -169,8 +169,8 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 			}
 
 			if (abortRequest) {
-				const bodyError = new Response();
-				return throwOnHttpError ? reject(bodyError) : resolve(bodyError);
+				const abortResponse = { ...new Response(), data: null, headers: {}, error: "AbortRequest" } as ResponseFetch;
+				return throwOnHttpError ? reject(abortResponse) : resolve(abortResponse);
 			}
 
 			let requestUrl = rejectBase ? url : resolveUrl(baseUrl, url);
@@ -191,14 +191,15 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 			});
 
 			const common = {
-				url: requestUrl,
 				data: bodyData,
 				error: null,
 				headers: responseHeaders,
 				ok: response.ok,
 				status: response.status,
-				statusText: response.statusText
+				statusText: response.statusText,
+				url: requestUrl
 			} as ResponseFetch;
+
 			if (response.ok) {
 				return resolve(mutateResponse(common, successResponseInterceptors));
 			}
@@ -217,21 +218,20 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 			setTimeout(
 				() =>
 					requestMethod({
-						rejectBase,
-						url,
-						headers,
-						retryAfter,
 						body,
+						headers,
 						method,
+						rejectBase,
 						retries: retries - 1,
-						retryOnCodes: retryOnCodes.concat(globalRetryCodes)
+						retryAfter,
+						retryOnCodes: retryOnCodes.concat(globalRetryCodes),
+						url
 					})
 						.then(resolve)
 						.catch(reject),
 				retryAfter
 			);
 		});
-	};
 
 	const exec = async <T>(
 		url: string,
@@ -251,8 +251,8 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 			retryAfter = 0,
 			omitHeaders = []
 		}: RequestParameters
-	): Promise<ResponseFetch | unknown> => {
-		const signal = controller.signal;
+	): Promise<ResponseFetch> => {
+		const { signal } = controller;
 
 		omitHeaders.forEach((x) => {
 			if (headers.has(x)) {
@@ -263,9 +263,9 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 		const queryString = isEmpty(query)
 			? ""
 			: QueryString.stringify(query, {
+					arrayFormat: arrayFormatQueryString,
 					encode: encodeQueryString,
-					skipNull: true,
-					arrayFormat: arrayFormatQueryString
+					skipNull: true
 			  });
 
 		const parameters = {
@@ -286,29 +286,21 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 			return requestMethod(parameters);
 		}
 
-		return Promise.race([
+		return Promise.race<any>([
 			requestMethod(parameters),
 			new Promise((_, reject) =>
 				setTimeout(() => {
 					controller.abort();
-					reject(timeoutError);
+					return reject(timeoutError);
 				}, timeout)
 			)
 		]);
 	};
 
 	const httpClientMethods: HttpClientReturn = {
-		get: (url: string, params: RequestParameters = {}) => exec(url, null, "GET", params),
-		put: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "PUT", params),
-		post: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "POST", params),
-		patch: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "PATCH", params),
-		delete: <T>(url: string, body?: T, params: RequestParameters = {}) => exec(url, body, "DELETE", params),
-		throwOnHttpError(isThrow: boolean) {
-			throwOnHttpError = isThrow;
+		addHeader(key: string, value: string) {
+			header.addHeader(key, value);
 			return httpClientMethods;
-		},
-		getRetryCodes() {
-			return [...globalRetryCodes];
 		},
 		addRetryCodes(...code: number[]) {
 			code.forEach((x) => {
@@ -318,6 +310,19 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 			});
 			return httpClientMethods;
 		},
+		delete: <T>(url: string, body?: T, params: RequestParameters = {}) => exec(url, body, "DELETE", params),
+		get: (url: string, params: RequestParameters = {}) => exec(url, null, "GET", params),
+		getAuthorization: (key: string = "Authorization") => header.getHeader(key) || "",
+		getHeader(key: string) {
+			header.getHeader(key);
+			return httpClientMethods;
+		},
+		getRetryCodes() {
+			return [...globalRetryCodes];
+		},
+		patch: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "PATCH", params),
+		post: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "POST", params),
+		put: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "PUT", params),
 		requestInterceptor(interceptorFunction: RequestInterceptors) {
 			requestInterceptors.push(interceptorFunction);
 			return httpClientMethods;
@@ -326,17 +331,12 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 			successResponseInterceptors.push(interceptorFunction);
 			return httpClientMethods;
 		},
-		addHeader(key: string, value: string) {
-			header.addHeader(key, value);
-			return httpClientMethods;
-		},
 		setAuthorization(token: string) {
 			header.addAuthorization(token);
 			return httpClientMethods;
 		},
-		getAuthorization: (key: string = "Authorization") => header.getHeader(key) || "",
-		getHeader(key: string) {
-			header.getHeader(key);
+		throwOnHttpError(isThrow: boolean) {
+			throwOnHttpError = isThrow;
 			return httpClientMethods;
 		}
 	};
@@ -350,3 +350,4 @@ HttpClient.put = HttpClient().put;
 HttpClient.delete = HttpClient().delete;
 
 export default HttpClient;
+export { ResponseFetch, Header };
