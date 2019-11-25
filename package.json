@@ -1,6 +1,6 @@
 {
   "name": "hermes-http",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "author": "Garcez",
   "main": "dist/index.js",
