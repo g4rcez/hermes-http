@@ -1,9 +1,9 @@
-import { HeaderPropsConstructor, AnyText, RawHeaders } from "hermes-http";
+import { AnyText, HeaderPropsConstructor, RawHeaders } from "./hermes-http-types";
 
 export default class Header {
 	private headers: Headers;
 
-	constructor(headers: HeaderPropsConstructor & any) {
+	public constructor(headers: HeaderPropsConstructor & any) {
 		this.headers = new Headers();
 		this.headers.append("User-Agent", "hermes-http");
 		this.headers.append("connection", "keep-alive");
