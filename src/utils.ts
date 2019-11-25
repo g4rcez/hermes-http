@@ -16,4 +16,4 @@ export const isEmpty = (object: any) => {
 	return true;
 };
 
-export const isNotEmpty = (object: any) => !isEmpty(object);
+export const resolveUrl = (base: string, uri: string) => (uri ? `${base.replace(/\/+$/, "")}/${uri.replace(/^\/+/, "")}` : base);

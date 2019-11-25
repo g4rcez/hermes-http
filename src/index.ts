@@ -1,5 +1,5 @@
 import QueryString from "query-string";
-import { isEmpty, isNotEmpty } from "./utils";
+import { isEmpty, resolveUrl } from "./utils";
 import Header from "./header";
 import {
 	Cache,
@@ -36,18 +36,13 @@ const responseTypes = [
 	["blob", "*/*"]
 ];
 
-const defaultStatusCodeRetry = [408, 413, 429, 500, 502, 503, 504];
-
-const resolveUrl = (base: string, uri: string) => (uri ? `${base.replace(/\/+$/, "")}/${uri.replace(/^\/+/, "")}` : base);
+const defaultStatusCodeRetry = [408, 429, 451, 500, 502, 503, 504];
 
 const defineParserFromMimeType = (value: string | undefined | null = ""): FetchParseBodyMethods => {
 	if (value === undefined || value === null) {
 		return "blob";
 	}
 	const lowerCase = value.toLowerCase();
-	if (lowerCase.indexOf("application/json") >= 0) {
-		return "json";
-	}
 	for (const [type] of responseTypes) {
 		if (lowerCase.indexOf(type) >= 0) {
 			return type as FetchParseBodyMethods;
@@ -60,10 +55,7 @@ const parseBodyRequest = (body: Object | any) => {
 	if (body === undefined || body === null) {
 		return null;
 	}
-	if (Array.isArray(body)) {
-		return JSON.stringify(body);
-	}
-	if (body.toString() === "[Object object]") {
+	if (Array.isArray(body) || body.toString() === "[Object object]") {
 		return JSON.stringify(body);
 	}
 	return body;
@@ -96,7 +88,6 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 				async function read() {
 					if (!!reader) {
 						const { done, value } = await reader.read();
-						console.log("COMO QUE PODE?", new Blob([value]));
 						if (done) {
 							onDownloadProgress(
 								{
@@ -124,21 +115,14 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 };
 
 const HttpClient = (configuration: RequestConfig = {}) => {
-	const defaultHeaders = getItem(configuration, "headers", {});
 	let abortRequest = false;
+	const fetchInstance = getItem(configuration, "fetchInstance", fetch);
 	let throwOnHttpError = getItem(configuration, "throwOnHttpError", true);
 	let baseUrl = getItem(configuration, "baseUrl", "");
 	let globalTimeout = getItem(configuration, "timeout", 0);
 	let globalRetryCodes = getItem(configuration, "retryStatusCode", defaultStatusCodeRetry) as number[];
 
-	const header = new Header({
-		...defaultHeaders,
-		"User-Agent": "hermes-http",
-		connection: "keep-alive",
-		Accept: "application/json, text/plain, */*",
-		"Accept-Encoding": "gzip, deflate, br",
-		"Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
-	});
+	const header = new Header(getItem(configuration, "headers", {}));
 
 	const requestInterceptors: RequestInterceptors[] = getItem(configuration, "requestInterceptors", []);
 	const errorResponseInterceptors: ResponseInterceptors[] = getItem(configuration, "errorResponseInterceptors", []);
@@ -191,14 +175,13 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 
 			let requestUrl = rejectBase ? url : resolveUrl(baseUrl, url);
 
-			if (isNotEmpty(query)) {
+			if (!isEmpty(query)) {
 				requestUrl += `?${query}`;
 			}
 
-			let response = (await fetch(requestUrl, { ...request })) as ResponseFetch;
+			const response = (await fetchInstance(requestUrl, { ...request })) as ResponseFetch;
 
 			const streaming = downloadTracker(response.clone(), onDownload);
-
 			const contentType = defineParserFromMimeType(response.headers.get("content-type"));
 			const bodyData = await streaming[contentType]();
 
@@ -207,29 +190,26 @@ const HttpClient = (configuration: RequestConfig = {}) => {
 				responseHeaders[name] = value;
 			});
 
-			if (response.ok) {
-				let responseReturn = {
-					url: requestUrl,
-					data: bodyData,
-					error: null,
-					headers: responseHeaders,
-					ok: response.ok,
-					status: response.status,
-					statusText: response.statusText
-				} as ResponseFetch;
-				return resolve(mutateResponse(responseReturn, successResponseInterceptors));
-			}
-
-			let bodyError = {
-				data: bodyData,
+			const common = {
 				url: requestUrl,
-				error: response.statusText ?? response.status ?? "",
+				data: bodyData,
+				error: null,
 				headers: responseHeaders,
 				ok: response.ok,
 				status: response.status,
 				statusText: response.statusText
 			} as ResponseFetch;
-			bodyError = await mutateResponse(bodyError, errorResponseInterceptors);
+			if (response.ok) {
+				return resolve(mutateResponse(common, successResponseInterceptors));
+			}
+
+			const bodyError = await mutateResponse(
+				{
+					...common,
+					error: response.statusText ?? response.status ?? null
+				},
+				errorResponseInterceptors
+			);
 
 			if (retries === 1) {
 				return throwOnHttpError ? reject(bodyError) : resolve(bodyError);
@@ -368,6 +348,5 @@ HttpClient.post = HttpClient().post;
 HttpClient.patch = HttpClient().patch;
 HttpClient.put = HttpClient().put;
 HttpClient.delete = HttpClient().delete;
-HttpClient.create = HttpClient;
 
 export default HttpClient;

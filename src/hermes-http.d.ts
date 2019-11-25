@@ -100,6 +100,7 @@ export type RequestParameters = Partial<{
 
 export type RequestConfig = RequestInit &
 	Partial<{
+		fetchInstance: typeof fetch;
 		authorization: string | null | undefined;
 		baseUrl: string;
 		headers: HeaderPropsConstructor;

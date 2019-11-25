@@ -4,6 +4,7 @@
   "license": "MIT",
   "author": "Garcez",
   "main": "dist/index.js",
+  "description": "Another wrapper over fetch",
   "module": "dist/hermes-http.esm.js",
   "typings": "dist/index.d.ts",
   "files": [
