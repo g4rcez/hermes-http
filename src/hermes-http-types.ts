@@ -87,7 +87,7 @@ export type RequestParameters = Partial<{
 	query: { [key: string]: unknown };
 	encodeQueryString: boolean;
 	onDownload: DownloadTracker;
-	arrayFormatQueryString: "bracket" | "index" | "comma" | "none";
+	arrayFormatQueryString: "brackets" | "index" | "commas" | undefined;
 	headers: Headers;
 	controller: AbortController;
 	retries: number;

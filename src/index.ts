@@ -1,4 +1,4 @@
-import QueryString from "query-string";
+import { queryString } from "./utils";
 import Header from "./header";
 import {
 	Cache,
@@ -38,7 +38,9 @@ const responseTypes = [
 
 const defaultStatusCodeRetry = [408, 429, 451, 500, 502, 503, 504];
 
-const defineParserFromMimeType = (value: string | undefined | null = ""): FetchParseBodyMethods => {
+const defineParserFromMimeType = (
+	value: string | undefined | null = ""
+): FetchParseBodyMethods => {
 	if (value === undefined || value === null) {
 		return "blob";
 	}
@@ -61,9 +63,16 @@ const parseBodyRequest = (body: unknown | any) => {
 	return body;
 };
 
-const getItem = (config: HermesConfig | undefined, item: keyof HermesConfig, def?: any) => config![item] ?? def;
+const getItem = (
+	config: HermesConfig | undefined,
+	item: keyof HermesConfig,
+	def?: any
+) => config![item] ?? def;
 
-const mutateResponse = async <T extends Function>(response: ResponseFetch, interceptors: T[]): Promise<ResponseFetch> => {
+const mutateResponse = async <T extends Function>(
+	response: ResponseFetch,
+	interceptors: T[]
+): Promise<ResponseFetch> => {
 	for (const callback of interceptors) {
 		try {
 			const responseMutate = await callback(response);
@@ -77,14 +86,25 @@ const mutateResponse = async <T extends Function>(response: ResponseFetch, inter
 
 const voidFn = () => {};
 
-const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker = voidFn) => {
+const downloadTracker = (
+	response: Response,
+	onDownloadProgress: DownloadTracker = voidFn
+) => {
 	const totalBytes = Number(response.headers.get("content-length")) || 0;
 	let amount = 0;
 	const reader = response.body?.getReader();
 	return new Response(
 		new ReadableStream({
 			start(controller) {
-				onDownloadProgress({ percent: 0, transferred: 0, total: totalBytes, done: false }, new Uint8Array());
+				onDownloadProgress(
+					{
+						percent: 0,
+						transferred: 0,
+						total: totalBytes,
+						done: false
+					},
+					new Uint8Array()
+				);
 				async function read() {
 					if (!!reader) {
 						const { done, value } = await reader.read();
@@ -102,8 +122,17 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 							return;
 						}
 						amount += value.byteLength;
-						const percent = totalBytes === 0 ? 0 : amount / totalBytes;
-						onDownloadProgress({ percent, transferred: amount, total: totalBytes, done }, value);
+						const percent =
+							totalBytes === 0 ? 0 : amount / totalBytes;
+						onDownloadProgress(
+							{
+								percent,
+								transferred: amount,
+								total: totalBytes,
+								done
+							},
+							value
+						);
 						controller.enqueue(value);
 						read();
 					}
@@ -114,19 +143,37 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 	);
 };
 
-const HttpClient = (configuration: HermesConfig = {}) => {
+const isBrowser = ![typeof window, typeof document].includes("undefined");
+
+function Hermes(configuration: HermesConfig = {}) {
 	let abortRequest = false;
-	const fetchInstance = getItem(configuration, "fetchInstance", fetch);
+	const fetchInstance = getItem(configuration, "fetchInstance", null);
 	let throwOnHttpError = getItem(configuration, "throwOnHttpError", true);
 	const baseUrl = getItem(configuration, "baseUrl", "");
 	const globalTimeout = getItem(configuration, "timeout", 0);
-	const globalRetryCodes = getItem(configuration, "retryStatusCode", defaultStatusCodeRetry) as number[];
+	const globalRetryCodes = getItem(
+		configuration,
+		"retryStatusCode",
+		defaultStatusCodeRetry
+	) as number[];
 
 	const header = new Header(getItem(configuration, "headers", {}));
 
-	const requestInterceptors: RequestInterceptors[] = getItem(configuration, "requestInterceptors", []);
-	const errorResponseInterceptors: ResponseInterceptors[] = getItem(configuration, "errorResponseInterceptors", []);
-	const successResponseInterceptors: ResponseInterceptors[] = getItem(configuration, "successResponseInterceptors", []);
+	const requestInterceptors: RequestInterceptors[] = getItem(
+		configuration,
+		"requestInterceptors",
+		[]
+	);
+	const errorResponseInterceptors: ResponseInterceptors[] = getItem(
+		configuration,
+		"errorResponseInterceptors",
+		[]
+	);
+	const successResponseInterceptors: ResponseInterceptors[] = getItem(
+		configuration,
+		"successResponseInterceptors",
+		[]
+	);
 
 	const requestMethod = async <T>({
 		url,
@@ -142,7 +189,9 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 		onDownload
 	}: ExecRequest<T>): Promise<ResponseFetch> =>
 		new Promise(async (resolve, reject) => {
-			headers.forEach((value, key) => header.getHeaders().set(key, value));
+			headers.forEach((value, key) =>
+				header.getHeaders().set(key, value)
+			);
 
 			let request = {
 				body: parseBodyRequest(body),
@@ -159,6 +208,7 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 
 			for (const callback of requestInterceptors) {
 				try {
+					// @ts-ignore
 					const promiseValue = await callback({ ...request, url });
 					request = { ...request, ...promiseValue.request };
 					abortRequest = promiseValue.abort ?? false;
@@ -169,8 +219,15 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 			}
 
 			if (abortRequest) {
-				const abortResponse = { ...new Response(), data: null, headers: {}, error: "AbortRequest" } as ResponseFetch;
-				return throwOnHttpError ? reject(abortResponse) : resolve(abortResponse);
+				const abortResponse = {
+					...new Response(),
+					data: null,
+					headers: {},
+					error: "AbortRequest"
+				} as ResponseFetch;
+				return throwOnHttpError
+					? reject(abortResponse)
+					: resolve(abortResponse);
 			}
 
 			let requestUrl = rejectBase ? url : resolveUrl(baseUrl, url);
@@ -179,10 +236,16 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 				requestUrl += `?${query}`;
 			}
 
-			const response = (await fetchInstance(requestUrl, { ...request })) as ResponseFetch;
+			const response = (await fetchInstance(requestUrl, {
+				...request
+			})) as ResponseFetch;
 
-			const streaming = downloadTracker(response.clone(), onDownload);
-			const contentType = defineParserFromMimeType(response.headers.get("content-type"));
+			const streaming = isBrowser
+				? downloadTracker(response.clone(), onDownload)
+				: response.clone();
+			const contentType = defineParserFromMimeType(
+				response.headers.get("content-type")
+			);
 			const bodyData = await streaming[contentType]();
 
 			const responseHeaders: RawHeaders = {};
@@ -201,7 +264,9 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 			} as ResponseFetch;
 
 			if (response.ok) {
-				return resolve(mutateResponse(common, successResponseInterceptors));
+				return resolve(
+					mutateResponse(common, successResponseInterceptors)
+				);
 			}
 
 			const bodyError = await mutateResponse(
@@ -213,7 +278,9 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 			);
 
 			if (retries === 1) {
-				return throwOnHttpError ? reject(bodyError) : resolve(bodyError);
+				return throwOnHttpError
+					? reject(bodyError)
+					: resolve(bodyError);
 			}
 			setTimeout(
 				() =>
@@ -254,18 +321,17 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 	): Promise<ResponseFetch> => {
 		const { signal } = controller;
 
-		omitHeaders.forEach((x) => {
+		omitHeaders.forEach(x => {
 			if (headers.has(x)) {
 				headers.delete(x);
 			}
 		});
 
-		const queryString = isEmpty(query)
+		const queryStr = isEmpty(query)
 			? ""
-			: QueryString.stringify(query, {
-					arrayFormat: arrayFormatQueryString,
-					encode: encodeQueryString,
-					skipNull: true
+			: queryString(query, {
+					array: arrayFormatQueryString,
+					encode: encodeQueryString
 			  });
 
 		const parameters = {
@@ -273,7 +339,7 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 			headers,
 			method,
 			onDownload,
-			query: queryString,
+			query: queryStr,
 			rejectBase,
 			retries,
 			retryAfter,
@@ -303,16 +369,19 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 			return httpClientMethods;
 		},
 		addRetryCodes(...code: number[]) {
-			code.forEach((x) => {
+			code.forEach(x => {
 				if (!globalRetryCodes.includes(x)) {
 					globalRetryCodes.push(x);
 				}
 			});
 			return httpClientMethods;
 		},
-		delete: <T>(url: string, body?: T, params: RequestParameters = {}) => exec(url, body, "DELETE", params),
-		get: (url: string, params: RequestParameters = {}) => exec(url, null, "GET", params),
-		getAuthorization: (key: string = "Authorization") => header.getHeader(key) || "",
+		delete: <T>(url: string, body?: T, params: RequestParameters = {}) =>
+			exec(url, body, "DELETE", params),
+		get: (url: string, params: RequestParameters = {}) =>
+			exec(url, null, "GET", params),
+		getAuthorization: (key: string = "Authorization") =>
+			header.getHeader(key) || "",
 		getHeader(key: string) {
 			header.getHeader(key);
 			return httpClientMethods;
@@ -320,9 +389,12 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 		getRetryCodes() {
 			return [...globalRetryCodes];
 		},
-		patch: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "PATCH", params),
-		post: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "POST", params),
-		put: <T>(url: string, body: T, params: RequestParameters = {}) => exec(url, body, "PUT", params),
+		patch: <T>(url: string, body: T, params: RequestParameters = {}) =>
+			exec(url, body, "PATCH", params),
+		post: <T>(url: string, body: T, params: RequestParameters = {}) =>
+			exec(url, body, "POST", params),
+		put: <T>(url: string, body: T, params: RequestParameters = {}) =>
+			exec(url, body, "PUT", params),
 		requestInterceptor(interceptorFunction: RequestInterceptors) {
 			requestInterceptors.push(interceptorFunction);
 			return httpClientMethods;
@@ -340,14 +412,7 @@ const HttpClient = (configuration: HermesConfig = {}) => {
 			return httpClientMethods;
 		}
 	};
-	return Object.freeze(httpClientMethods);
-};
+	return httpClientMethods;
+}
 
-HttpClient.get = HttpClient().get;
-HttpClient.post = HttpClient().post;
-HttpClient.patch = HttpClient().patch;
-HttpClient.put = HttpClient().put;
-HttpClient.delete = HttpClient().delete;
-
-export default HttpClient;
-export { ResponseFetch, Header };
+export default Hermes;

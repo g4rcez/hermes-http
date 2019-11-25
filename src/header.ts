@@ -1,5 +1,4 @@
 import { AnyText, HeaderPropsConstructor, RawHeaders } from "./hermes-http-types";
-
 export default class Header {
 	private headers: Headers;
 
