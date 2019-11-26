@@ -18,6 +18,8 @@
     "eject": "react-scripts eject"
   },
   "devDependencies": {
+    "@types/react": "^16.9.13",
+    "@types/react-dom": "^16.9.4",
     "babel-jest": "^24.9.0",
     "typescript": "^3.7.2"
   },

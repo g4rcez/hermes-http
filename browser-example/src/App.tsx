@@ -1,9 +1,22 @@
-import React, { Component } from "react";
 import Hermes from "hermes-http";
+import React, { useEffect, useState } from "react";
 
-export default class App extends Component {
-	render() {
-		console.log(Hermes);
-		return <div>Modern React component module</div>;
-	}
+const hermes = Hermes();
+
+export default function App() {
+	const [state, setState] = useState({});
+	useEffect(() => {
+		hermes
+			.get("https://api.postmon.com.br/v1/cep/38706400")
+			.then((e) => {
+				console.log(e);
+				setState(e);
+			})
+			.catch(setState);
+	}, []);
+	return (
+		<pre>
+			<code>{JSON.stringify(state, null, 4)}</code>
+		</pre>
+	);
 }
