@@ -9,7 +9,7 @@ global.AbortController = require("abort-controller");
 
 const hermes = Hermes({
 	fetchInstance: fetch,
-	timeout: 10000
+	timeout: 30000
 });
 
-hermes.get("https://api.postmon.com.br/v1/cep/38706400").then(e => console.log(e));
+hermes.get("https://api.postmon.com.br/v1/cep/38706400").then(e => console.log(e)).catch(e => console.log(e))
