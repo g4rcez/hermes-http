@@ -73,7 +73,6 @@ export type ExecRequest<T> = {
 	onDownload?: DownloadTracker;
 	query?: string;
 	retryAfter: number;
-	rejectBase: boolean;
 	url: string;
 	body: T | null;
 	method: HttpMethods;
