@@ -1,4 +1,5 @@
 import { AnyText, HeaderPropsConstructor, RawHeaders } from "./hermes-http-types";
+
 export default class Header {
 	private headers: Headers;
 
@@ -6,7 +7,7 @@ export default class Header {
 		this.headers = new Headers();
 		this.headers.append("User-Agent", "hermes-http");
 		this.headers.append("connection", "keep-alive");
-		this.headers.append("Accept-Encoding", "gzip, deflate, br");
+		this.headers.append("Accept-Encoding", "gzip, deflate");
 		this.headers.append("Accept", "application/json, text/plain, */*");
 		Object.entries(headers).forEach(([key, value]) => this.headers.append(key, `${value}`));
 	}
