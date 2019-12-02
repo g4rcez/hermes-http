@@ -7,10 +7,10 @@ export type HeaderPropsConstructor = { [key: string]: AnyText };
 export type RawHeaders = { [key: string]: AnyText };
 
 export type DownloadTrackerParameters = {
-	percent: number;
-	transferred: number;
-	total: number;
 	done: boolean;
+	percent: number;
+	total: number;
+	transferred: number;
 };
 
 export type DownloadTracker = (parameters: DownloadTrackerParameters, bytes: Uint8Array) => void;

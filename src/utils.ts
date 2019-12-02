@@ -1,4 +1,4 @@
-export const isEmpty = (object: any) => {
+export const isEmpty = (object: unknown) => {
 	if (typeof object === "undefined" || object === null) {
 		return true;
 	}
@@ -8,12 +8,7 @@ export const isEmpty = (object: any) => {
 	if (typeof object === "string" && object.trim().length === 0) {
 		return true;
 	}
-	for (const key in object) {
-		if (object.hasOwnProperty(key)) {
-			return false;
-		}
-	}
-	return true;
+	return Object.keys(object as any).length > 0;
 };
 
 export const resolveUrl = (base: string, uri: string) => (uri ? `${base.replace(/\/+$/, "")}/${uri.replace(/^\/+/, "")}` : base);
@@ -28,9 +23,10 @@ const strictEncode = (str: string) =>
 				.toUpperCase()}`
 	);
 
-type ArrayFormatEncode = "index" | "brackets" | "commas";
+type ArrayEncode = "index" | "brackets" | "commas";
+
 type Options = Partial<{
-	array: ArrayFormatEncode;
+	array: ArrayEncode;
 	strict: boolean;
 	encode: boolean;
 }>;
@@ -65,51 +61,35 @@ export const encodeArray = ({ array = "commas", ...options }: Options) => {
 			if (value === null || value === undefined || value.length === 0) {
 				return result;
 			}
-
 			if (result.length === 0) {
 				return [[encode(key, options), "=", encode(value, options)].join("")];
 			}
-
 			return [[result, encode(value, options)].join(",")];
 		};
 	}
-	return (key: string) => (result: string[], value: string) => {
-		if (value === undefined || value === null) {
-			return result;
-		}
-		return [...result, [encode(key, options), "=", encode(value, options)].join("")];
-	};
+	return (key: string) => (result: string[], value: string) =>
+		value === undefined || value === null ? result : [...result, [encode(key, options), "=", encode(value, options)].join("")];
 };
 
-type QueryStringObject = { [key: string]: unknown };
+type QueryString = { [key: string]: unknown };
 
-const defaultOptions = {
-	array: "commas" as ArrayFormatEncode,
-	encode: true,
-	strict: true
-};
+const defaultOptions = { array: "commas" as ArrayEncode, encode: true, strict: true };
 
-export const queryString = (object: QueryStringObject, options: Options = defaultOptions) => {
-	if (!!!object) {
+export const queryString = (params: QueryString, options: Options = defaultOptions) => {
+	if (!!!params) {
 		return "";
 	}
 
 	const formatter = encodeArray(options);
 
-	const objectNonNull = Object.entries(object).reduce((acc, [key, value]) => {
-		if (object[key] !== undefined || object[key] !== null) {
-			return { ...acc, [key]: value };
-		}
-		return acc;
-	}, {});
+	const objectNonNull = Object.entries(params).reduce((acc, [key, value]) =>
+		params[key] !== undefined || params[key] !== null ? { ...acc, [key]: value } : acc
+	);
 
 	return Object.entries(objectNonNull)
-		.map(([key, value]) => {
-			if (Array.isArray(value)) {
-				return value.reduce(formatter(key), []).join("&");
-			}
-			return encode(key, options) + "=" + encode(value as string, options);
-		})
+		.map(([key, val]: [string, string]) =>
+			Array.isArray(val) ? val.reduce(formatter(key), []).join("&") : encode(key, options) + "=" + encode(val, options)
+		)
 		.filter((x) => x.length > 0)
 		.join("&");
 };

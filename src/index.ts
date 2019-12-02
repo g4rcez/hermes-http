@@ -1,4 +1,3 @@
-import { queryString } from "./utils";
 import Header from "./header";
 import {
 	Cache,
@@ -17,7 +16,7 @@ import {
 	ResponseFetch,
 	ResponseInterceptors
 } from "./hermes-http-types";
-import { isEmpty, resolveUrl } from "./utils";
+import { isEmpty, queryString, resolveUrl } from "./utils";
 
 const timeoutError = {
 	data: null,
@@ -57,7 +56,7 @@ const parseBodyRequest = (body: unknown | any) => {
 	if (body === undefined || body === null) {
 		return null;
 	}
-	if (Array.isArray(body) || isObject.includes(body.toString())) {
+	if (Array.isArray(body) || body.toString().toLowerCase() === "[object object]") {
 		return JSON.stringify(body);
 	}
 	return body;
@@ -113,39 +112,23 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 
 const isBrowser = ![typeof window, typeof document].includes("undefined");
 
-function Hermes(configuration: HermesConfig = {}) {
+function Hermes(cfg: HermesConfig = {}) {
 	let abortRequest = false;
-	let throwOnHttpError = getItem(configuration, "throwOnHttpError", true);
+	let throwOnHttpError = getItem(cfg, "throwOnHttpError", true);
 
-	const fetch = getItem(configuration, "fetchInstance", isBrowser ? window.fetch : null);
-	const baseUrl = getItem(configuration, "baseUrl", "");
-	const globalTimeout = getItem(configuration, "timeout", 0);
-	const globalRetryCodes = getItem(configuration, "retryStatusCode", defaultStatusCodeRetry) as number[];
+	const fetch = getItem(cfg, "fetchInstance", isBrowser ? window.fetch : null);
+	const baseUrl = getItem(cfg, "baseUrl", "");
+	const globalTimeout = getItem(cfg, "timeout", 0);
+	const globalRetryCodes = getItem(cfg, "retryStatusCode", defaultStatusCodeRetry) as number[];
+	const requestInterceptors: RequestInterceptors[] = getItem(cfg, "requestInterceptors", []);
+	const errorResponseInterceptors: ResponseInterceptors[] = getItem(cfg, "errorResponseInterceptors", []);
+	const successResponseInterceptors: ResponseInterceptors[] = getItem(cfg, "successResponseInterceptors", []);
 
-	const header = new Header(getItem(configuration, "headers", {}));
-
-	const requestInterceptors: RequestInterceptors[] = getItem(configuration, "requestInterceptors", []);
-	const errorResponseInterceptors: ResponseInterceptors[] = getItem(configuration, "errorResponseInterceptors", []);
-	const successResponseInterceptors: ResponseInterceptors[] = getItem(
-		configuration,
-		"successResponseInterceptors",
-		[]
-	);
+	const header = new Header(getItem(cfg, "headers", {}));
 
 	const requestMethod = async <T>(
-		{
-			url,
-			body,
-			method = "GET",
-			retries,
-			headers,
-			retryOnCodes,
-			retryAfter = 0,
-			query = "",
-			signal,
-			onDownload
-		}: ExecRequest<T>,
-		timeoutConcurrent?: any
+		{ url, body, method = "GET", retries, headers, retryOnCodes, retryAfter = 0, query = "", signal, onDownload }: ExecRequest<T>,
+		timeoutConcurrent?: NodeJS.Timeout | null
 	): Promise<ResponseFetch> =>
 		new Promise(async (resolve, reject) => {
 			headers.forEach((value: string, key: string) => header.getHeaders().set(key, value));
@@ -194,12 +177,12 @@ function Hermes(configuration: HermesConfig = {}) {
 			const response = (await fetch(requestUrl, request)) as ResponseFetch;
 
 			if (timeoutConcurrent !== null) {
-				clearTimeout(timeoutConcurrent);
+				clearTimeout(timeoutConcurrent as any);
 			}
 
-			const streaming = isBrowser ? downloadTracker(response.clone(), onDownload) : response.clone();
+			const stream = isBrowser ? downloadTracker(response.clone(), onDownload) : response.clone();
 			const contentType = defineParserFromMimeType(response.headers.get("content-type"));
-			const bodyData = await streaming[contentType]();
+			const bodyData = await stream[contentType]();
 
 			const responseHeaders: RawHeaders = {};
 			response.headers.forEach((value: string, name: string) => {
@@ -231,6 +214,7 @@ function Hermes(configuration: HermesConfig = {}) {
 			if (retries <= 1) {
 				return throwOnHttpError ? reject(bodyError) : resolve(bodyError);
 			}
+
 			return setTimeout(
 				() =>
 					requestMethod({
@@ -298,7 +282,7 @@ function Hermes(configuration: HermesConfig = {}) {
 			return requestMethod(parameters);
 		}
 
-		let timer: any = null;
+		let timer: NodeJS.Timeout | null = null;
 
 		return Promise.race<any>([
 			new Promise((_, reject) => {
