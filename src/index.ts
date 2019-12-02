@@ -51,11 +51,13 @@ const defineParserFromMimeType = (value: string | undefined | null = ""): FetchP
 	return "blob";
 };
 
+const isObject = ["[object Object]", "[Object object]"];
+
 const parseBodyRequest = (body: unknown | any) => {
 	if (body === undefined || body === null) {
 		return null;
 	}
-	if (Array.isArray(body) || body.toString() === "[Object object]") {
+	if (Array.isArray(body) || isObject.includes(body.toString())) {
 		return JSON.stringify(body);
 	}
 	return body;
@@ -63,7 +65,10 @@ const parseBodyRequest = (body: unknown | any) => {
 
 const getItem = (config: HermesConfig | undefined, item: keyof HermesConfig, def?: any) => config![item] ?? def;
 
-const mutateResponse = async <T extends Function>(response: ResponseFetch, interceptors: T[]): Promise<ResponseFetch> => {
+const mutateResponse = async <T extends Function>(
+	response: ResponseFetch,
+	interceptors: T[]
+): Promise<ResponseFetch> => {
 	for (const callback of interceptors) {
 		try {
 			const responseMutate = await callback(response);
@@ -84,18 +89,18 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 	return new Response(
 		new ReadableStream({
 			start(controller) {
-				onDownloadProgress({ percent: 0, transferred: 0, total: total, done: false }, new Uint8Array());
+				onDownloadProgress({ percent: 0, transferred: 0, total, done: false }, new Uint8Array());
 				async function read() {
 					if (!!reader) {
 						const { done, value } = await reader.read();
 						if (done) {
-							onDownloadProgress({ done, percent: 1, total: total, transferred: total }, value);
+							onDownloadProgress({ done, percent: 1, total, transferred: total }, value);
 							controller.close();
 							return;
 						}
 						amount += value.byteLength;
 						const percent = total === 0 ? 0 : amount / total;
-						onDownloadProgress({ percent, transferred: amount, total: total, done }, value);
+						onDownloadProgress({ percent, transferred: amount, total, done }, value);
 						controller.enqueue(value);
 						read();
 					}
@@ -110,8 +115,9 @@ const isBrowser = ![typeof window, typeof document].includes("undefined");
 
 function Hermes(configuration: HermesConfig = {}) {
 	let abortRequest = false;
-	const fetch = getItem(configuration, "fetchInstance", isBrowser ? window.fetch : null);
 	let throwOnHttpError = getItem(configuration, "throwOnHttpError", true);
+
+	const fetch = getItem(configuration, "fetchInstance", isBrowser ? window.fetch : null);
 	const baseUrl = getItem(configuration, "baseUrl", "");
 	const globalTimeout = getItem(configuration, "timeout", 0);
 	const globalRetryCodes = getItem(configuration, "retryStatusCode", defaultStatusCodeRetry) as number[];
@@ -120,26 +126,41 @@ function Hermes(configuration: HermesConfig = {}) {
 
 	const requestInterceptors: RequestInterceptors[] = getItem(configuration, "requestInterceptors", []);
 	const errorResponseInterceptors: ResponseInterceptors[] = getItem(configuration, "errorResponseInterceptors", []);
-	const successResponseInterceptors: ResponseInterceptors[] = getItem(configuration, "successResponseInterceptors", []);
+	const successResponseInterceptors: ResponseInterceptors[] = getItem(
+		configuration,
+		"successResponseInterceptors",
+		[]
+	);
 
 	const requestMethod = async <T>(
-		{ url, body, method = "GET", retries, headers, retryOnCodes, retryAfter = 0, query = "", signal, onDownload }: ExecRequest<T>,
+		{
+			url,
+			body,
+			method = "GET",
+			retries,
+			headers,
+			retryOnCodes,
+			retryAfter = 0,
+			query = "",
+			signal,
+			onDownload
+		}: ExecRequest<T>,
 		timeoutConcurrent?: any
 	): Promise<ResponseFetch> =>
 		new Promise(async (resolve, reject) => {
-			headers.forEach((value, key) => header.getHeaders().set(key, value));
+			headers.forEach((value: string, key: string) => header.getHeaders().set(key, value));
 
 			let request = {
 				body: parseBodyRequest(body),
 				cache: "no-store" as Cache,
 				credentials: "same-origin" as Credentials,
-				headers: header.getHeaders(),
+				headers: header.getPlainHeaders(),
 				keepalive: false,
 				method,
 				mode: "cors" as ModeRequest,
 				redirect: "follow" as Redirect,
 				referrer: "no-referrer",
-				signal
+				signal: signal!
 			};
 
 			for (const callback of requestInterceptors) {
@@ -155,7 +176,12 @@ function Hermes(configuration: HermesConfig = {}) {
 			}
 
 			if (abortRequest) {
-				const abortResponse = { ...new Response(), data: null, headers: {}, error: "AbortRequest" } as ResponseFetch;
+				const abortResponse = {
+					...new Response(),
+					data: null,
+					headers: {},
+					error: "AbortRequest"
+				} as ResponseFetch;
 				return throwOnHttpError ? reject(abortResponse) : resolve(abortResponse);
 			}
 
@@ -170,13 +196,13 @@ function Hermes(configuration: HermesConfig = {}) {
 			if (timeoutConcurrent !== null) {
 				clearTimeout(timeoutConcurrent);
 			}
-			
+
 			const streaming = isBrowser ? downloadTracker(response.clone(), onDownload) : response.clone();
 			const contentType = defineParserFromMimeType(response.headers.get("content-type"));
 			const bodyData = await streaming[contentType]();
 
 			const responseHeaders: RawHeaders = {};
-			response.headers.forEach((value, name) => {
+			response.headers.forEach((value: string, name: string) => {
 				responseHeaders[name] = value;
 			});
 
@@ -202,7 +228,7 @@ function Hermes(configuration: HermesConfig = {}) {
 				errorResponseInterceptors
 			);
 
-			if (retries === 1) {
+			if (retries <= 1) {
 				return throwOnHttpError ? reject(bodyError) : resolve(bodyError);
 			}
 			return setTimeout(

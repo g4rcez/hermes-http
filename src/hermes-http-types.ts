@@ -27,13 +27,13 @@ export type ResponseFetch = Response & {
 
 export type HttpMethods = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD";
 
-export type Cache = "default" | "no-store" | "reload" | "no-cache" | "force-cache" | "only-if-cached" | undefined;
+export type Cache = "default" | "no-store" | "reload" | "no-cache" | "force-cache" | "only-if-cached";
 
-export type Credentials = "same-origin" | "omit" | "include" | undefined;
+export type Credentials = "same-origin" | "omit" | "include";
 
-export type ModeRequest = "same-origin" | "cors" | "navigate" | "no-cors" | undefined;
+export type ModeRequest = "same-origin" | "cors" | "navigate" | "no-cors";
 
-export type Redirect = "follow" | "error" | "manual" | undefined;
+export type Redirect = "follow" | "error" | "manual";
 
 export type RequestInterceptorParameter = {
 	body: any;
