@@ -312,12 +312,11 @@ function Hermes(cfg?: HermesConfig) {
 			});
 			return httpClientMethods;
 		},
-		delete: <T>(url: string, body?: T, params: RequestParameters = {}) => exec(url, body, "DELETE", params),
+		delete: (url: string, params: RequestParameters = {}) => exec(url, null, "DELETE", params),
 		get: (url: string, params: RequestParameters = {}) => exec(url, null, "GET", params),
 		getAuthorization: (key: string = "Authorization") => header.getHeader(key) || "",
 		getHeader(key: string) {
-			header.getHeader(key);
-			return httpClientMethods;
+			return header.getHeader(key);
 		},
 		getRetryCodes() {
 			return [...globalRetryCodes];
