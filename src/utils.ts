@@ -82,13 +82,16 @@ export const queryString = (params: QueryString, options: Options = defaultOptio
 
 	const formatter = encodeArray(options);
 
-	const objectNonNull = Object.entries(params).reduce((acc, [key, value]) =>
-		params[key] !== undefined || params[key] !== null ? { ...acc, [key]: value } : acc
+	const objectNonNull = Object.entries(params).reduce(
+		(acc, [key, value]) => (params[key] !== undefined || params[key] !== null ? { ...acc, [key]: value } : acc),
+		{}
 	);
 
 	return Object.entries(objectNonNull)
-		.map(([key, val]: [string, string]) =>
-			Array.isArray(val) ? val.reduce(formatter(key), []).join("&") : encode(key, options) + "=" + encode(val, options)
+		.map(
+			([key, val]: [string, string]) =>
+				Array.isArray(val) ? val.reduce(formatter(key), []).join("&") : encode(key, options) + "=" + encode(val, options),
+			""
 		)
 		.filter((x) => x.length > 0)
 		.join("&");

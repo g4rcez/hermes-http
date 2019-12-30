@@ -50,8 +50,6 @@ const defineParserFromMimeType = (value: string | undefined | null = ""): FetchP
 	return "blob";
 };
 
-const isObject = ["[object Object]", "[Object object]"];
-
 const parseBodyRequest = (body: unknown | any) => {
 	if (body === undefined || body === null) {
 		return null;
@@ -62,12 +60,7 @@ const parseBodyRequest = (body: unknown | any) => {
 	return body;
 };
 
-const getItem = (config: HermesConfig | undefined, item: keyof HermesConfig, def?: any) => config![item] ?? def;
-
-const mutateResponse = async <T extends Function>(
-	response: ResponseFetch,
-	interceptors: T[]
-): Promise<ResponseFetch> => {
+const mutateResponse = async <T extends Function>(response: ResponseFetch, interceptors: T[]): Promise<ResponseFetch> => {
 	for (const callback of interceptors) {
 		try {
 			const responseMutate = await callback(response);
@@ -110,34 +103,45 @@ const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker
 	);
 };
 
-const isBrowser = ![typeof window, typeof document].includes("undefined");
+const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
 
-function Hermes(cfg: HermesConfig = {}) {
+const getIsomorphicFetch = () => {
+	if (isBrowser) {
+		return window.fetch;
+	}
+	const nodeFetch = require("node-fetch");
+	global.fetch = nodeFetch;
+	global.Headers = nodeFetch.Headers;
+	global.Response = nodeFetch.Response;
+	global.AbortController = require("abort-controller");
+	return nodeFetch;
+};
+
+function Hermes(cfg?: HermesConfig) {
 	let abortRequest = false;
-	let throwOnHttpError = getItem(cfg, "throwOnHttpError", true);
+	let throwOnHttpError = cfg?.throwOnHttpError ?? true;
+	const isomorphicFetch = getIsomorphicFetch();
+	const baseUrl = cfg?.baseUrl ?? "";
+	const globalTimeout = cfg?.timeout ?? 0;
+	const globalRetryCodes = cfg?.retryStatusCode ?? defaultStatusCodeRetry;
+	const requestInterceptors: RequestInterceptors[] = cfg?.requestInterceptors ?? [];
+	const errorResponseInterceptors: ResponseInterceptors[] = cfg?.errorResponseInterceptors ?? [];
+	const successResponseInterceptors: ResponseInterceptors[] = cfg?.successResponseInterceptors ?? [];
 
-	const fetch = getItem(cfg, "fetchInstance", isBrowser ? window.fetch : null);
-	const baseUrl = getItem(cfg, "baseUrl", "");
-	const globalTimeout = getItem(cfg, "timeout", 0);
-	const globalRetryCodes = getItem(cfg, "retryStatusCode", defaultStatusCodeRetry) as number[];
-	const requestInterceptors: RequestInterceptors[] = getItem(cfg, "requestInterceptors", []);
-	const errorResponseInterceptors: ResponseInterceptors[] = getItem(cfg, "errorResponseInterceptors", []);
-	const successResponseInterceptors: ResponseInterceptors[] = getItem(cfg, "successResponseInterceptors", []);
-
-	const header = new Header(getItem(cfg, "headers", {}));
+	const header = new Header(cfg?.headers ?? {});
 
 	const requestMethod = async <T>(
 		{ url, body, method = "GET", retries, headers, retryOnCodes, retryAfter = 0, query = "", signal, onDownload }: ExecRequest<T>,
 		timeoutConcurrent?: NodeJS.Timeout | null
 	): Promise<ResponseFetch> =>
 		new Promise(async (resolve, reject) => {
-			headers.forEach((value: string, key: string) => header.getHeaders().set(key, value));
+			headers.forEach((value: string, key: string) => header.get().set(key, value));
 
 			let request = {
 				body: parseBodyRequest(body),
 				cache: "no-store" as Cache,
 				credentials: "same-origin" as Credentials,
-				headers: header.getPlainHeaders(),
+				headers: header.get(),
 				keepalive: false,
 				method,
 				mode: "cors" as ModeRequest,
@@ -174,7 +178,7 @@ function Hermes(cfg: HermesConfig = {}) {
 				requestUrl += `?${query}`;
 			}
 
-			const response = (await fetch(requestUrl, request)) as ResponseFetch;
+			const response = (await isomorphicFetch!(requestUrl, request)) as ResponseFetch;
 
 			if (timeoutConcurrent !== null) {
 				clearTimeout(timeoutConcurrent as any);

@@ -1,4 +1,4 @@
-import { AnyText, HeaderPropsConstructor, RawHeaders } from "./hermes-http-types";
+import { AnyText, HeaderPropsConstructor } from "./hermes-http-types";
 
 export default class Header {
 	private headers: Headers;
@@ -26,15 +26,7 @@ export default class Header {
 		return this.headers.get(name);
 	}
 
-	public getHeaders() {
+	public get() {
 		return this.headers;
-	}
-
-	public getPlainHeaders() {
-		const headers: RawHeaders = {};
-		this.headers.forEach((value: string, header: string) => {
-			headers[header] = value;
-		});
-		return headers;
 	}
 }

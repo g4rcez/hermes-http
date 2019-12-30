@@ -98,7 +98,6 @@ export type RequestParameters = Partial<{
 }>;
 
 export type HermesConfig = Partial<{
-	fetchInstance: any;
 	authorization: string | null | undefined;
 	baseUrl: string;
 	headers: HeaderPropsConstructor;
@@ -127,3 +126,14 @@ export type HttpClientReturn = {
 	setAuthorization: (token: string) => HttpClientReturn;
 	throwOnHttpError: (isThrow: boolean) => HttpClientReturn;
 };
+
+declare global {
+	namespace NodeJS {
+		interface Global {
+			fetch: any;
+			Headers: any;
+			Response: any;
+			AbortController: any;
+		}
+	}
+}
