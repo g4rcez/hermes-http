@@ -123,7 +123,7 @@ export type HttpClientReturn = {
 	put: <T>(url: string, body: T, params?: RequestParameters) => Promise<ResponseFetch>;
 	requestInterceptor: (interceptorFunction: RequestInterceptors) => HttpClientReturn;
 	responseInterceptor: (interceptorFunction: ResponseInterceptors) => HttpClientReturn;
-	setAuthorization: (token: string) => HttpClientReturn;
+	setAuthorization: (token: string, headerName: string) => HttpClientReturn;
 	throwOnHttpError: (isThrow: boolean) => HttpClientReturn;
 };
 

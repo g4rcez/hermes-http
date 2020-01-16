@@ -27,22 +27,21 @@ const timeoutError = {
 	statusText: ""
 };
 
-const responseTypes = [
+const mimeTypes = [
 	["json", "application/json"],
 	["text", "text/"],
 	["formData", "multipart/form-data"],
-	["arrayBuffer", "*/*"],
 	["blob", "*/*"]
 ];
 
 const defaultStatusCodeRetry = [408, 429, 451, 500, 502, 503, 504];
 
-const defineParserFromMimeType = (value: string | undefined | null = ""): FetchParseBodyMethods => {
+const getParserFromMimeType = (value: string | undefined | null = ""): FetchParseBodyMethods => {
 	if (value === undefined || value === null) {
 		return "blob";
 	}
 	const lowerCase = value.toLowerCase();
-	for (const [type] of responseTypes) {
+	for (const [type] of mimeTypes) {
 		if (lowerCase.indexOf(type) >= 0) {
 			return type as FetchParseBodyMethods;
 		}
@@ -60,7 +59,7 @@ const parseBodyRequest = (body: unknown | any) => {
 	return body;
 };
 
-const mutateResponse = async <T extends Function>(response: ResponseFetch, interceptors: T[]): Promise<ResponseFetch> => {
+const applyInterceptors = async <T extends Function>(response: ResponseFetch, interceptors: T[]): Promise<ResponseFetch> => {
 	for (const callback of interceptors) {
 		try {
 			const responseMutate = await callback(response);
@@ -127,7 +126,6 @@ function Hermes(cfg?: HermesConfig) {
 	const requestInterceptors: RequestInterceptors[] = cfg?.requestInterceptors ?? [];
 	const errorResponseInterceptors: ResponseInterceptors[] = cfg?.errorResponseInterceptors ?? [];
 	const successResponseInterceptors: ResponseInterceptors[] = cfg?.successResponseInterceptors ?? [];
-
 	const header = new Header(cfg?.headers ?? {});
 
 	const requestMethod = async <T>(
@@ -136,7 +134,6 @@ function Hermes(cfg?: HermesConfig) {
 	): Promise<ResponseFetch> =>
 		new Promise(async (resolve, reject) => {
 			headers.forEach((value: string, key: string) => header.get().set(key, value));
-
 			let request = {
 				body: parseBodyRequest(body),
 				cache: "no-store" as Cache,
@@ -149,11 +146,10 @@ function Hermes(cfg?: HermesConfig) {
 				referrer: "no-referrer",
 				signal: signal!
 			};
-
-			for (const callback of requestInterceptors) {
+			for (const interceptor of requestInterceptors) {
 				try {
 					// @ts-ignore
-					const promiseValue = await callback({ ...request, url });
+					const promiseValue = await interceptor({ ...request, url });
 					request = { ...request, ...promiseValue.request };
 					abortRequest = promiseValue.abort ?? false;
 				} catch (error) {
@@ -171,7 +167,6 @@ function Hermes(cfg?: HermesConfig) {
 				} as ResponseFetch;
 				return throwOnHttpError ? reject(abortResponse) : resolve(abortResponse);
 			}
-
 			let requestUrl = isEmpty(baseUrl) ? url : resolveUrl(baseUrl, url);
 
 			if (!isEmpty(query)) {
@@ -183,16 +178,13 @@ function Hermes(cfg?: HermesConfig) {
 			if (timeoutConcurrent !== null) {
 				clearTimeout(timeoutConcurrent as any);
 			}
-
 			const stream = isBrowser ? downloadTracker(response.clone(), onDownload) : response.clone();
-			const contentType = defineParserFromMimeType(response.headers.get("content-type"));
+			const contentType = getParserFromMimeType(response.headers.get("content-type"));
 			const bodyData = await stream[contentType]();
-
 			const responseHeaders: RawHeaders = {};
 			response.headers.forEach((value: string, name: string) => {
 				responseHeaders[name] = value;
 			});
-
 			const common = {
 				data: bodyData,
 				error: null,
@@ -202,23 +194,19 @@ function Hermes(cfg?: HermesConfig) {
 				statusText: response.statusText,
 				url: requestUrl
 			} as ResponseFetch;
-
 			if (response.ok) {
-				return resolve(mutateResponse(common, successResponseInterceptors));
+				return resolve(applyInterceptors(common, successResponseInterceptors));
 			}
-
-			const bodyError = await mutateResponse(
+			const bodyError = await applyInterceptors(
 				{
 					...common,
 					error: response.statusText ?? response.status ?? null
 				},
 				errorResponseInterceptors
 			);
-
 			if (retries <= 1) {
 				return throwOnHttpError ? reject(bodyError) : resolve(bodyError);
 			}
-
 			return setTimeout(
 				() =>
 					requestMethod({
@@ -332,8 +320,8 @@ function Hermes(cfg?: HermesConfig) {
 			successResponseInterceptors.push(interceptorFunction);
 			return httpClientMethods;
 		},
-		setAuthorization(token: string) {
-			header.addAuthorization(token);
+		setAuthorization(token: string, headerName?: string) {
+			header.addAuthorization(token, headerName);
 			return httpClientMethods;
 		},
 		throwOnHttpError(isThrow: boolean) {
