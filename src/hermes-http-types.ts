@@ -1,21 +1,21 @@
 export type AnyText = string | number;
 
-export type FetchParseBodyMethods = "json" | "text" | "formData" | "arrayBuffer" | "blob";
+export type FetchBodyParser = "json" | "text" | "formData" | "arrayBuffer" | "blob";
 
-export type HeaderPropsConstructor = { [key: string]: AnyText };
+export type HeaderProps = { [key: string]: AnyText };
 
 export type RawHeaders = { [key: string]: AnyText };
 
-export type DownloadTrackerParameters = {
+export type DownloadTracking = {
 	done: boolean;
 	percent: number;
 	total: number;
 	transferred: number;
 };
 
-export type DownloadTracker = (parameters: DownloadTrackerParameters, bytes: Uint8Array) => void;
+export type DownloadTracker = (parameters: DownloadTracking, bytes: Uint8Array) => void;
 
-export type ResponseFetch = Response & {
+export type HermesResponse = Response & {
 	url: string;
 	data: unknown;
 	error: string | number | null;
@@ -48,7 +48,7 @@ export type RequestInterceptorParameter = {
 	url: string;
 };
 
-export type RequestInterceptorReturnType = Promise<{
+export type RequestInterceptorReturn = Promise<{
 	abort?: boolean;
 	request: {
 		body: any;
@@ -65,11 +65,11 @@ export type RequestInterceptorReturnType = Promise<{
 	};
 }>;
 
-export type RequestInterceptors = (request: RequestInterceptorParameter) => RequestInterceptorReturnType;
+export type RequestInterceptors = (request: RequestInterceptorParameter) => RequestInterceptorReturn;
 
-export type ResponseInterceptors = (response: ResponseFetch) => Promise<ResponseFetch>;
+export type ResponseInterceptors = (response: HermesResponse) => Promise<HermesResponse>;
 
-export type ExecRequest<T> = {
+export type RequestConfig<T> = {
 	onDownload?: DownloadTracker;
 	query?: string;
 	retryAfter: number;
@@ -86,7 +86,7 @@ export type RequestParameters = Partial<{
 	query: { [key: string]: unknown };
 	encodeQueryString: boolean;
 	onDownload: DownloadTracker;
-	arrayFormatQueryString: "brackets" | "index" | "commas" | undefined;
+	arrayQueryFormat: "brackets" | "index" | "commas" | undefined;
 	headers: Headers;
 	controller: AbortController;
 	retries: number;
@@ -94,13 +94,12 @@ export type RequestParameters = Partial<{
 	retryCodes: number[];
 	timeout: number;
 	omitHeaders: string[];
-	rejectBase: boolean;
 }>;
 
 export type HermesConfig = Partial<{
 	authorization: string | null | undefined;
 	baseUrl: string;
-	headers: HeaderPropsConstructor;
+	headers: HeaderProps;
 	requestInterceptors: RequestInterceptors[];
 	successResponseInterceptors: ResponseInterceptors[];
 	errorResponseInterceptors: ResponseInterceptors[];
@@ -113,18 +112,17 @@ export type HermesConfig = Partial<{
 export type HttpClientReturn = {
 	addHeader: (key: string, value: string) => HttpClientReturn;
 	addRetryCodes: (code: number) => HttpClientReturn;
-	delete: <T>(url: string, body?: T, params?: RequestParameters) => Promise<ResponseFetch>;
-	get: (url: string, params?: RequestParameters) => Promise<ResponseFetch>;
+	delete: <T>(url: string, body?: T, params?: RequestParameters) => Promise<HermesResponse>;
+	get: (url: string, params?: RequestParameters) => Promise<HermesResponse>;
 	getAuthorization: (key: string) => string;
 	getHeader: (key: string) => string | null;
 	getRetryCodes: () => number[];
-	patch: <T>(url: string, body: T, params?: RequestParameters) => Promise<ResponseFetch>;
-	post: <T>(url: string, body: T, params?: RequestParameters) => Promise<ResponseFetch>;
-	put: <T>(url: string, body: T, params?: RequestParameters) => Promise<ResponseFetch>;
+	patch: <T>(url: string, body: T, params?: RequestParameters) => Promise<HermesResponse>;
+	post: <T>(url: string, body: T, params?: RequestParameters) => Promise<HermesResponse>;
+	put: <T>(url: string, body: T, params?: RequestParameters) => Promise<HermesResponse>;
 	requestInterceptor: (interceptorFunction: RequestInterceptors) => HttpClientReturn;
 	responseInterceptor: (interceptorFunction: ResponseInterceptors) => HttpClientReturn;
 	setAuthorization: (token: string, headerName: string) => HttpClientReturn;
-	throwOnHttpError: (isThrow: boolean) => HttpClientReturn;
 };
 
 declare global {

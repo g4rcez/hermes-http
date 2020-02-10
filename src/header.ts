@@ -1,9 +1,9 @@
-import { AnyText, HeaderPropsConstructor } from "./hermes-http-types";
+import { AnyText, HeaderProps } from "./hermes-http-types";
 
 export default class Header {
 	private headers: Headers;
 
-	public constructor(headers: HeaderPropsConstructor & any) {
+	public constructor(headers: HeaderProps & any) {
 		this.headers = new Headers();
 		this.headers.append("User-Agent", "hermes-http");
 		this.headers.append("Accept-Encoding", "gzip, deflate");
