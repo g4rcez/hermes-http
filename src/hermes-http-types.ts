@@ -15,15 +15,25 @@ export type DownloadTracking = {
 
 export type DownloadTracker = (parameters: DownloadTracking, bytes: Uint8Array) => void;
 
-export type HermesResponse = Response & {
-	url: string;
-	data: unknown;
-	error: string | number | null;
-	headers: { [key: string]: string };
-	ok: boolean;
-	status: number;
-	statusText: string | null;
-};
+export type HermesResponse<SuccessBody, ErrorBody> =
+	| {
+			url: string;
+			data: ErrorBody;
+			error: string | number;
+			headers: { [key: string]: string };
+			ok: boolean;
+			status: number;
+			statusText: string | null;
+	  }
+	| {
+			url: string;
+			data: SuccessBody;
+			error: null;
+			headers: { [key: string]: string };
+			ok: boolean;
+			status: number;
+			statusText: string | null;
+	  };
 
 export type HttpMethods = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD";
 
@@ -67,7 +77,7 @@ export type RequestInterceptorReturn = Promise<{
 
 export type RequestInterceptors = (request: RequestInterceptorParameter) => RequestInterceptorReturn;
 
-export type ResponseInterceptors = (response: HermesResponse) => Promise<HermesResponse>;
+export type SuccessInterceptor<T> = (response: HermesResponse<T, never>) => Promise<HermesResponse<T, any>>;
 
 export type RequestConfig<T> = {
 	onDownload?: DownloadTracker;
@@ -97,12 +107,12 @@ export type RequestParameters = Partial<{
 }>;
 
 export type HermesConfig = Partial<{
-	authorization: string | null | undefined;
 	baseUrl: string;
+	globalTimeout: number;
 	headers: HeaderProps;
 	requestInterceptors: RequestInterceptors[];
-	successResponseInterceptors: ResponseInterceptors[];
-	errorResponseInterceptors: ResponseInterceptors[];
+	successResponseInterceptors: SuccessInterceptor<unknown>[];
+	errorResponseInterceptors: SuccessInterceptor<unknown>[];
 	responseType: string;
 	retryStatusCode: number[];
 	throwOnHttpError: boolean;
@@ -112,17 +122,15 @@ export type HermesConfig = Partial<{
 export type HttpClientReturn = {
 	addHeader: (key: string, value: string) => HttpClientReturn;
 	addRetryCodes: (code: number) => HttpClientReturn;
-	delete: <T>(url: string, body?: T, params?: RequestParameters) => Promise<HermesResponse>;
-	get: (url: string, params?: RequestParameters) => Promise<HermesResponse>;
-	getAuthorization: (key: string) => string;
-	getHeader: (key: string) => string | null;
+	delete: <T, E>(url: string, body?: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
+	get: <T, E>(url: string, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
+	getHeaders: () => Headers;
 	getRetryCodes: () => number[];
-	patch: <T>(url: string, body: T, params?: RequestParameters) => Promise<HermesResponse>;
-	post: <T>(url: string, body: T, params?: RequestParameters) => Promise<HermesResponse>;
-	put: <T>(url: string, body: T, params?: RequestParameters) => Promise<HermesResponse>;
+	patch: <T, E>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
+	post: <T, E>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
+	put: <T, E>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
 	requestInterceptor: (interceptorFunction: RequestInterceptors) => HttpClientReturn;
-	responseInterceptor: (interceptorFunction: ResponseInterceptors) => HttpClientReturn;
-	setAuthorization: (token: string, headerName: string) => HttpClientReturn;
+	successResponseInterceptor: <T>(interceptorFunction: SuccessInterceptor<T>) => HttpClientReturn;
 };
 
 declare global {
