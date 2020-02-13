@@ -1,2 +1,2 @@
 export { default as HermesHttp } from "./hermes";
-export { HermesResponse as ResponseFetch } from "./hermes-http-types";
+export { HermesErrorResponse as ErrorResponse, HermesSuccessResponse as SuccessResponse } from "./hermes-http-types";

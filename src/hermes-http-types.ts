@@ -1,3 +1,6 @@
+import { QueryString } from "./utils";
+import { ErrorResponse } from ".";
+
 export type AnyText = string | number;
 
 export type FetchBodyParser = "json" | "text" | "formData" | "arrayBuffer" | "blob";
@@ -15,22 +18,34 @@ export type DownloadTracking = {
 
 export type DownloadTracker = (parameters: DownloadTracking, bytes: Uint8Array) => void;
 
-export type HermesResponse<SuccessBody, ErrorBody> =
-	| {
+export type HermesSuccessResponse<SuccessBody> = {
+	url: string;
+	data: SuccessBody;
+	error: null;
+	headers: { [key: string]: string };
+	ok: boolean;
+	status: number;
+	statusText: string | null;
+};
+
+type UnTypeResponse<T> = {
+	url: string;
+	// data?: T;
+	error: string | number;
+	headers: { [key: string]: string };
+	ok: false;
+	status: number;
+	statusText: string | null;
+};
+
+export type HermesErrorResponse<T> = null extends T
+	? UnTypeResponse<T>
+	: {
 			url: string;
-			data: ErrorBody;
+			readonly data: T;
 			error: string | number;
 			headers: { [key: string]: string };
-			ok: boolean;
-			status: number;
-			statusText: string | null;
-	  }
-	| {
-			url: string;
-			data: SuccessBody;
-			error: null;
-			headers: { [key: string]: string };
-			ok: boolean;
+			ok: false;
 			status: number;
 			statusText: string | null;
 	  };
@@ -77,7 +92,9 @@ export type RequestInterceptorReturn = Promise<{
 
 export type RequestInterceptors = (request: RequestInterceptorParameter) => RequestInterceptorReturn;
 
-export type SuccessInterceptor<T> = (response: HermesResponse<T, never>) => Promise<HermesResponse<T, any>>;
+export type SuccessInterceptor<T> = (response: HermesSuccessResponse<T>) => Promise<HermesSuccessResponse<T>>;
+
+export type ErrorInterceptor<T> = (response: HermesErrorResponse<T>) => Promise<HermesErrorResponse<T>>;
 
 export type RequestConfig<T> = {
 	onDownload?: DownloadTracker;
@@ -93,10 +110,10 @@ export type RequestConfig<T> = {
 };
 
 export type RequestParameters = Partial<{
-	query: { [key: string]: unknown };
+	query: QueryString<any>;
 	encodeQueryString: boolean;
 	onDownload: DownloadTracker;
-	arrayQueryFormat: "brackets" | "index" | "commas" | undefined;
+	arrayQueryFormat: "brackets" | "index" | "commas";
 	headers: Headers;
 	controller: AbortController;
 	retries: number;
@@ -121,22 +138,22 @@ export type HermesConfig = Partial<{
 
 export type HttpClientReturn = {
 	addHeader: (key: string, value: string) => HttpClientReturn;
-	addRetryCodes: (code: number) => HttpClientReturn;
-	delete: <T, E>(url: string, body?: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
-	get: <T, E>(url: string, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
+	delete: <T>(url: string, body?: unknown, params?: RequestParameters) => Promise<HermesSuccessResponse<T>>;
+	get: <T>(url: string, params?: RequestParameters) => Promise<HermesSuccessResponse<T>>;
 	getHeaders: () => Headers;
 	getRetryCodes: () => number[];
-	patch: <T, E>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
-	post: <T, E>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
-	put: <T, E>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesResponse<T, E>>;
+	patch: <T>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesSuccessResponse<T>>;
+	post: <T>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesSuccessResponse<T>>;
+	put: <T>(url: string, body: unknown, params?: RequestParameters) => Promise<HermesSuccessResponse<T>>;
 	requestInterceptor: (interceptorFunction: RequestInterceptors) => HttpClientReturn;
 	successResponseInterceptor: <T>(interceptorFunction: SuccessInterceptor<T>) => HttpClientReturn;
+	errorResponseInterceptor: <T>(interceptorFunction: ErrorInterceptor<T>) => HttpClientReturn;
 };
 
 declare global {
 	namespace NodeJS {
 		interface Global {
-			fetch: any;
+			fetch: typeof fetch;
 			Headers: any;
 			Response: any;
 			AbortController: any;

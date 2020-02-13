@@ -5,7 +5,7 @@ import {
 	DownloadTracker,
 	FetchBodyParser,
 	HermesConfig,
-	HermesResponse,
+	HermesSuccessResponse,
 	HttpClientReturn,
 	HttpMethods,
 	ModeRequest,
@@ -14,9 +14,11 @@ import {
 	RequestConfig,
 	RequestInterceptors,
 	RequestParameters,
-	SuccessInterceptor
+	SuccessInterceptor,
+	HermesErrorResponse,
+	ErrorInterceptor
 } from "./hermes-http-types";
-import { isEmpty, queryString, resolveUrl } from "./utils";
+import { qsEmpty, qs, concatUrl } from "./utils";
 
 const timeoutError = {
 	data: null,
@@ -59,9 +61,14 @@ const parseBodyRequest = (body: unknown | any) => {
 	return body;
 };
 
-type Interceptor<T, E> = (response: HermesResponse<T, E>) => Promise<HermesResponse<T, E>>;
+type Interceptor<T> = (
+	response: HermesSuccessResponse<T> | HermesErrorResponse<T>
+) => Promise<HermesSuccessResponse<T> | HermesErrorResponse<T>>;
 
-const applyInterceptors = async <T, E>(response: HermesResponse<T, E>, interceptors: Interceptor<T, E>[]): Promise<HermesResponse<T, E>> => {
+const applyInterceptors = async <T>(
+	response: HermesSuccessResponse<T> | HermesErrorResponse<T>,
+	interceptors: Interceptor<T>[]
+): Promise<HermesSuccessResponse<T> | HermesErrorResponse<T>> => {
 	for (const callback of interceptors) {
 		try {
 			const responseMutate = await callback(response);
@@ -70,13 +77,12 @@ const applyInterceptors = async <T, E>(response: HermesResponse<T, E>, intercept
 			response = { ...response, ...error };
 		}
 	}
-	console.log("NEW RESPONSE", response);
 	return response;
 };
 
 const voidFn = () => {};
 
-const downloadTracker = (response: Response, onDownloadProgress: DownloadTracker = voidFn) => {
+const tracking = (response: Response, onDownloadProgress: DownloadTracker = voidFn) => {
 	const total = Number(response.headers.get("content-length")) || 0;
 	let amount = 0;
 	const reader = response.body?.getReader();
@@ -134,10 +140,21 @@ const Hermes = ({
 	const errorResponseInterceptors: any[] = [];
 	const successResponseInterceptors: any[] = [];
 
-	const requestMethod = async <SuccessBody, ErrorResponse>(
-		{ url, body, method = "GET", retries, headers, retryOnCodes, retryAfter = 0, query = "", signal, onDownload }: RequestConfig<SuccessBody>,
+	const requestMethod = async <BodyType, ErrorResponse>(
+		{
+			url,
+			body,
+			method = "GET",
+			retries,
+			headers,
+			retryOnCodes,
+			retryAfter = 0,
+			query = "",
+			signal,
+			onDownload
+		}: RequestConfig<BodyType>,
 		timeoutConcurrent?: NodeJS.Timeout | null
-	): Promise<HermesResponse<SuccessBody, ErrorResponse>> =>
+	): Promise<HermesSuccessResponse<BodyType>> =>
 		new Promise(async (resolve, reject) => {
 			headers.forEach((value: string, key: string) => header.get().set(key, value));
 			let request = {
@@ -174,9 +191,9 @@ const Hermes = ({
 				} as any;
 				return throwOnHttpError ? reject(abortResponse) : resolve(abortResponse as any);
 			}
-			let requestUrl = isEmpty(baseUrl) ? url : resolveUrl(baseUrl, url);
+			let requestUrl = baseUrl.trim() === "" ? url : concatUrl(baseUrl, url);
 
-			if (!isEmpty(query)) {
+			if (query.trim() !== "") {
 				requestUrl += `?${query}`;
 			}
 
@@ -185,7 +202,7 @@ const Hermes = ({
 			if (timeoutConcurrent !== null) {
 				clearTimeout(timeoutConcurrent as any);
 			}
-			const stream = isBrowser ? downloadTracker(response.clone(), onDownload) : response.clone();
+			const stream = isBrowser ? tracking(response.clone(), onDownload) : response.clone();
 			const contentType = getParserFromMimeType(response.headers.get("content-type"));
 			const bodyData = await stream[contentType]();
 			const responseHeaders: RawHeaders = {};
@@ -202,10 +219,10 @@ const Hermes = ({
 				status: response.status,
 				statusText: response.statusText,
 				url: requestUrl
-			} as HermesResponse<SuccessBody, ErrorResponse>;
+			};
 
 			if (response.ok) {
-				return resolve(applyInterceptors<SuccessBody, ErrorResponse>(common as never, successResponseInterceptors));
+				return resolve(applyInterceptors(common as never, successResponseInterceptors) as never);
 			}
 			const bodyError = (await applyInterceptors(
 				{
@@ -213,7 +230,7 @@ const Hermes = ({
 					error: response.statusText ?? response.status ?? null
 				} as never,
 				errorResponseInterceptors
-			)) as HermesResponse<ErrorResponse, ErrorResponse>;
+			)) as HermesErrorResponse<ErrorResponse>;
 			if (retries <= 1) {
 				return throwOnHttpError ? reject(bodyError) : resolve(bodyError as never);
 			}
@@ -234,7 +251,7 @@ const Hermes = ({
 			);
 		});
 
-	const exec = async <T, E>(
+	const exec = async <T>(
 		url: string,
 		body: unknown,
 		method: HttpMethods = "GET",
@@ -251,7 +268,7 @@ const Hermes = ({
 			retryAfter = 0,
 			omitHeaders = []
 		}: RequestParameters
-	): Promise<HermesResponse<T, E>> => {
+	): Promise<HermesSuccessResponse<T>> => {
 		const { signal } = controller;
 
 		omitHeaders.forEach((x) => {
@@ -260,9 +277,9 @@ const Hermes = ({
 			}
 		});
 
-		const queryStr = isEmpty(query)
+		const queryStr = qsEmpty(query)
 			? ""
-			: queryString(query, {
+			: qs(query, {
 					array: arrayFormatQueryString,
 					encode: encodeQueryString
 			  });
@@ -302,29 +319,25 @@ const Hermes = ({
 			header.addHeader(key, value);
 			return hermes;
 		},
-		addRetryCodes(...code: number[]) {
-			code.forEach((x) => {
-				if (!retryStatusCode.includes(x)) {
-					retryStatusCode.push(x);
-				}
-			});
-			return hermes;
-		},
-		delete: <T, E>(url: string, params: RequestParameters = {}) => exec<T, E>(url, null, "DELETE", params),
-		get: <T, E>(url: string, params: RequestParameters = {}) => exec<T, E>(url, null, "GET", params),
+		delete: <T>(url: string, params: RequestParameters = {}) => exec<T>(url, null, "DELETE", params),
+		get: <T>(url: string, params: RequestParameters = {}) => exec<T>(url, null, "GET", params),
 		getHeaders: () => header.get(),
 		getRetryCodes() {
 			return [...retryStatusCode];
 		},
-		patch: <T, E>(url: string, body: unknown, params: RequestParameters = {}) => exec<T, E>(url, body, "PATCH", params),
-		post: <T, E>(url: string, body: unknown, params: RequestParameters = {}) => exec<T, E>(url, body, "POST", params),
-		put: <T, E>(url: string, body: unknown, params: RequestParameters = {}) => exec<T, E>(url, body, "PUT", params),
+		patch: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "PATCH", params),
+		post: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "POST", params),
+		put: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "PUT", params),
 		requestInterceptor(interceptorFunction: RequestInterceptors) {
 			requestInterceptors.push(interceptorFunction);
 			return hermes;
 		},
 		successResponseInterceptor<T>(interceptorFunction: SuccessInterceptor<T>) {
 			successResponseInterceptors.push(interceptorFunction);
+			return hermes;
+		},
+		errorResponseInterceptor<T>(interceptorFunction: ErrorInterceptor<T>) {
+			errorResponseInterceptors.push(interceptorFunction);
 			return hermes;
 		}
 	};

@@ -1,4 +1,4 @@
-import { HermesHttp } from "hermes-http";
+import { HermesHttp, ErrorResponse } from "hermes-http";
 
 type GithubUser = {
 	login: string;
@@ -35,17 +35,22 @@ type GithubUser = {
 };
 
 const hermes = HermesHttp({ timeout: 30000, throwOnHttpError: true });
-
-hermes.successResponseInterceptor<GithubUser>(async (e) => {
-	console.log("->", e);
-	return { ...e, data: { ...e.data, bio: "Bio mudada" } };
-});
+hermes.addHeader("authorization", "SECRET_TOKEN");
+hermes
+	.successResponseInterceptor<GithubUser>(async (e) => {
+		return { ...e, data: { ...e.data, bio: "Bio mudada" } };
+	})
+	.errorResponseInterceptor<{ ok: true }>(async (e) => {
+		return { ...e, data: { ...e.data, eu: "avisei" } };
+	});
 
 hermes
-	.get<GithubUser, unknown>("https://api.github.com/users/octocat")
+	.get<GithubUser>("https://api.github.com/users/octocat---")
 	.then((e) => {
-		if (e.error === null) {
-			console.log(e.data.bio);
-		}
+		console.log(e.data.bio);
 	})
-	.catch((e) => console.log("falhou", e));
+	.catch((e: ErrorResponse<{ ok: true }>) =>
+		console.log("falhou", () => {
+			e
+		})
+	);

@@ -1,17 +1,21 @@
-export const isEmpty = (object: unknown) => {
+type ArrayEncode = "index" | "brackets" | "commas";
+
+export type QueryString<T extends string> = { [key in keyof T]: T[key] };
+
+type Options = Partial<{
+	array: ArrayEncode;
+	strict: boolean;
+	encode: boolean;
+}>;
+
+export const qsEmpty = (object: unknown) => {
 	if (typeof object === "undefined" || object === null) {
-		return true;
-	}
-	if (Array.isArray(object) && object.length === 0) {
-		return true;
-	}
-	if (typeof object === "string" && object.trim().length === 0) {
 		return true;
 	}
 	return Object.keys(object as any).length > 0;
 };
 
-export const resolveUrl = (base: string, uri: string) => (uri ? `${base.replace(/\/+$/, "")}/${uri.replace(/^\/+/, "")}` : base);
+export const concatUrl = (base: string, uri: string) => (uri ? `${base.replace(/\/+$/, "")}/${uri.replace(/^\/+/, "")}` : base);
 
 const strictEncode = (str: string) =>
 	encodeURIComponent(str).replace(
@@ -23,14 +27,6 @@ const strictEncode = (str: string) =>
 				.toUpperCase()}`
 	);
 
-type ArrayEncode = "index" | "brackets" | "commas";
-
-type Options = Partial<{
-	array: ArrayEncode;
-	strict: boolean;
-	encode: boolean;
-}>;
-
 const encode = (value: string | number, options: Options) => {
 	if (options.encode) {
 		return options.strict ? strictEncode(`${value}`) : encodeURIComponent(value);
@@ -38,44 +34,36 @@ const encode = (value: string | number, options: Options) => {
 	return `${value}`;
 };
 
-export const encodeArray = ({ array = "commas", ...options }: Options) => {
-	if (array === "index") {
-		return (key: string) => (result: string[], value: string) => {
-			const index = result.length;
-			if (value === undefined || value === null) {
-				return result;
-			}
-			return [...result, [encode(key, options), "[", encode(index, options), "]=", encode(value, options)].join("")];
-		};
+const encodeTypes: {
+	[key in ArrayEncode]: any;
+} = {
+	index: (key: string, options: Options) => (result: string[], value: string) => {
+		const index = result.length;
+		if (value === undefined || value === null) {
+			return result;
+		}
+		return [...result, [encode(key, options), "[", encode(index, options), "]=", encode(value, options)].join("")];
+	},
+	brackets: (key: string, options: Options) => (result: string[], value: string) => {
+		if (value === undefined || value === null) {
+			return result;
+		}
+		return [...result, [encode(key, options), "[]=", encode(value, options)].join("")];
+	},
+	commas: (key: string, options: Options) => (result: string[], value: string) => {
+		if (value === null || value === undefined || value.length === 0) {
+			return result;
+		}
+		if (result.length === 0) {
+			return [[encode(key, options), "=", encode(value, options)].join("")];
+		}
+		return [[result, encode(value, options)].join(",")];
 	}
-	if (array === "brackets") {
-		return (key: string) => (result: string[], value: string) => {
-			if (value === undefined || value === null) {
-				return result;
-			}
-			return [...result, [encode(key, options), "[]=", encode(value, options)].join("")];
-		};
-	}
-	if (array === "commas") {
-		return (key: string) => (result: string[], value: string) => {
-			if (value === null || value === undefined || value.length === 0) {
-				return result;
-			}
-			if (result.length === 0) {
-				return [[encode(key, options), "=", encode(value, options)].join("")];
-			}
-			return [[result, encode(value, options)].join(",")];
-		};
-	}
-	return (key: string) => (result: string[], value: string) =>
-		value === undefined || value === null ? result : [...result, [encode(key, options), "=", encode(value, options)].join("")];
 };
 
-type QueryString = { [key: string]: unknown };
+export const encodeArray = (type: ArrayEncode = "commas") => encodeTypes[type];
 
-const defaultOptions = { array: "commas" as ArrayEncode, encode: true, strict: true };
-
-export const queryString = (params: QueryString, options: Options = defaultOptions) => {
+export const qs = <T extends string>(params: QueryString<T>, options: Options = { array: "commas" as ArrayEncode, encode: true, strict: true }) => {
 	if (!!!params) {
 		return "";
 	}
@@ -88,7 +76,9 @@ export const queryString = (params: QueryString, options: Options = defaultOptio
 	return Object.entries(objectNonNull)
 		.map(
 			([key, val]: [string, string]) =>
-				Array.isArray(val) ? val.reduce(encodeArray(options)(key), []).join("&") : encode(key, options) + "=" + encode(val, options),
+				Array.isArray(val)
+					? val.reduce(encodeArray(options.array)(key, options), []).join("&")
+					: encode(key, options) + "=" + encode(val, options),
 			""
 		)
 		.filter((x) => x.length > 0)
