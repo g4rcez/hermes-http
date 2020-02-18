@@ -1,0 +1,40 @@
+import { HermesErrorResponse, HermesSuccessResponse, RequestInterceptorParameter } from "../../dist/hermes-http-types";
+
+type DedupeMap = Map<
+	string,
+	{
+		timestamps: number;
+		body: any;
+	}
+>;
+
+const avoidRequests: DedupeMap = new Map();
+
+export const dedupeRequest = async (e: RequestInterceptorParameter) => {
+	if (!avoidRequests.has(e.url)) {
+		avoidRequests.set(e.url, { body: e.body, timestamps: new Date().getTime() });
+		return {
+			request: e,
+			abort: false
+		};
+	}
+	return {
+		request: e,
+		abort: true
+	};
+};
+
+type concat<T extends any> = HermesSuccessResponse<T> & HermesErrorResponse<T>;
+
+export const clearDedupe = async <T>(e: concat<T>, millisecondsDiff?: number) => {
+	if (avoidRequests.has(e.url)) {
+		if (typeof millisecondsDiff === "number") {
+			const request = avoidRequests.get(e.url)!;
+			const now = new Date().getTime();
+			if (now - request.timestamps >= millisecondsDiff) {
+				avoidRequests.delete(e.url);
+			}
+		}
+	}
+	return e;
+};

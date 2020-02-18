@@ -1,5 +1,5 @@
 import { HermesHttp, ErrorResponse } from "hermes-http";
-
+import { clearDedupe, dedupeRequest } from "../../src/plugins/dedupe";
 type GithubUser = {
 	login: string;
 	id: 583231;
@@ -35,8 +35,14 @@ type GithubUser = {
 };
 
 const hermes = HermesHttp({ timeout: 30000, throwOnHttpError: true });
+
 hermes.addHeader("authorization", "SECRET_TOKEN");
+
+hermes.requestInterceptor(dedupeRequest);
+
 hermes
+	.successResponseInterceptor((e) => clearDedupe(e as any, 200))
+	.errorResponseInterceptor((e) => clearDedupe(e as any, 200))
 	.successResponseInterceptor<GithubUser>(async (e) => {
 		return { ...e, data: { ...e.data, bio: "Bio mudada" } };
 	})
@@ -44,13 +50,12 @@ hermes
 		return { ...e, data: { ...e.data, eu: "avisei" } };
 	});
 
-hermes
-	.get<GithubUser>("https://api.github.com/users/octocat---")
-	.then((e) => {
-		console.log(e.data.bio);
-	})
-	.catch((e: ErrorResponse<{ ok: true }>) =>
-		console.log("falhou", () => {
-			e
+const request = (n: number) =>
+	hermes
+		.get<GithubUser>("https://api.github.com/users/octocat")
+		.then((e) => {
+			console.log(n, e);
 		})
-	);
+		.catch((e: ErrorResponse<{ ok: true }>) => console.log("falhou", e));
+
+request(1).then(() => request(2));
