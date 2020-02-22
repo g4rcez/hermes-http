@@ -1,21 +1,20 @@
 import Header from "./header";
 import {
 	Cache,
-	Credentials,
 	DownloadTracker,
-	FetchBodyParser,
+	BodyParser,
 	HermesConfig,
 	HermesSuccessResponse,
-	HttpClientReturn,
+	HermesClient,
 	HttpMethods,
-	ModeRequest,
+	CorsMode,
 	RawHeaders,
-	Redirect,
+	RedirectMode,
 	RequestConfig,
-	RequestInterceptors,
+	RequestInterceptor,
 	RequestParameters,
 	SuccessInterceptor,
-	HermesErrorResponse,
+	ResponseError,
 	ErrorInterceptor
 } from "./hermes-http-types";
 import { qsEmpty, qs, concatUrl } from "./utils";
@@ -38,14 +37,14 @@ const mimeTypes = [
 
 const defaultStatusCodeRetry = [408, 429, 451, 500, 502, 503, 504];
 
-const getParserFromMimeType = (value: string | undefined | null = ""): FetchBodyParser => {
+const getParserFromMimeType = (value: string | undefined | null = ""): BodyParser => {
 	if (value === undefined || value === null) {
 		return "blob";
 	}
 	const lowerCase = value.toLowerCase();
 	for (const [type] of mimeTypes) {
 		if (lowerCase.indexOf(type) >= 0) {
-			return type as FetchBodyParser;
+			return type as BodyParser;
 		}
 	}
 	return "blob";
@@ -62,13 +61,13 @@ const parseBodyRequest = (body: unknown | any) => {
 };
 
 type Interceptor<T> = (
-	response: HermesSuccessResponse<T> | HermesErrorResponse<T>
-) => Promise<HermesSuccessResponse<T> | HermesErrorResponse<T>>;
+	response: HermesSuccessResponse<T> | ResponseError<T>
+) => Promise<HermesSuccessResponse<T> | ResponseError<T>>;
 
 const applyInterceptors = async <T>(
-	response: HermesSuccessResponse<T> | HermesErrorResponse<T>,
+	response: HermesSuccessResponse<T> | ResponseError<T>,
 	interceptors: Interceptor<T>[]
-): Promise<HermesSuccessResponse<T> | HermesErrorResponse<T>> => {
+): Promise<HermesSuccessResponse<T> | ResponseError<T>> => {
 	for (const callback of interceptors) {
 		try {
 			const responseMutate = await callback(response);
@@ -125,7 +124,7 @@ const getIsomorphicFetch = () => {
 	return nodeFetch;
 };
 
-const Hermes = ({
+export const Hermes = ({
 	throwOnHttpError = true,
 	requestInterceptors = [],
 	baseUrl = "",
@@ -160,12 +159,12 @@ const Hermes = ({
 			let request = {
 				body: parseBodyRequest(body),
 				cache: "no-store" as Cache,
-				credentials: "same-origin" as Credentials,
+				credentials: "same-origin" as CorsMode,
 				headers: header.get(),
 				keepalive: false,
 				method,
-				mode: "cors" as ModeRequest,
-				redirect: "follow" as Redirect,
+				mode: "cors" as CorsMode,
+				redirect: "follow" as RedirectMode,
 				referrer: "no-referrer",
 				signal: signal!
 			};
@@ -230,7 +229,7 @@ const Hermes = ({
 					error: response.statusText ?? response.status ?? null
 				} as never,
 				errorResponseInterceptors
-			)) as HermesErrorResponse<ErrorResponse>;
+			)) as ResponseError<ErrorResponse>;
 			if (retries <= 1) {
 				return throwOnHttpError ? reject(bodyError) : resolve(bodyError as never);
 			}
@@ -314,7 +313,7 @@ const Hermes = ({
 		]);
 	};
 
-	const hermes: HttpClientReturn = {
+	const hermes: HermesClient = {
 		addHeader(key: string, value: string) {
 			header.addHeader(key, value);
 			return hermes;
@@ -328,7 +327,7 @@ const Hermes = ({
 		patch: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "PATCH", params),
 		post: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "POST", params),
 		put: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "PUT", params),
-		requestInterceptor(interceptorFunction: RequestInterceptors) {
+		requestInterceptor(interceptorFunction: RequestInterceptor) {
 			requestInterceptors.push(interceptorFunction);
 			return hermes;
 		},
@@ -343,5 +342,3 @@ const Hermes = ({
 	};
 	return hermes;
 };
-
-export default Hermes;

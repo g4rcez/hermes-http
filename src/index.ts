@@ -1,2 +1,2 @@
-export { default as HermesHttp } from "./hermes";
-export { HermesErrorResponse as ErrorResponse, HermesSuccessResponse as SuccessResponse } from "./hermes-http-types";
+export { Hermes as default } from "./hermes";
+export { ResponseError, HttpMethods, RedirectMode, CredentialsMode, CorsMode } from "./hermes-http-types";
