@@ -1,32 +1,24 @@
 import Header from "./header";
 import {
-	Cache,
-	DownloadTracker,
 	BodyParser,
+	DownloadTracker,
+	ErrorInterceptor,
+	Hermes,
 	HermesConfig,
-	HermesSuccessResponse,
-	HermesClient,
 	HttpMethods,
-	CorsMode,
 	RawHeaders,
-	RedirectMode,
 	RequestConfig,
 	RequestInterceptor,
 	RequestParameters,
-	SuccessInterceptor,
 	ResponseError,
-	ErrorInterceptor
+	ResponseSuccess,
+	SuccessInterceptor
 } from "./hermes-http-types";
-import { qsEmpty, qs, concatUrl } from "./utils";
+import { concatUrl, isEmpty, qs } from "./utils";
 
-const timeoutError = {
-	data: null,
-	error: "timeout",
-	headers: {},
-	ok: false,
-	status: 0,
-	statusText: ""
-};
+const requestMap = new Map<string, Promise<any>>();
+
+const timeoutError = { data: null, error: "timeout", headers: {}, ok: false, status: 0, statusText: "" };
 
 const mimeTypes = [
 	["json", "application/json"],
@@ -35,9 +27,9 @@ const mimeTypes = [
 	["blob", "*/*"]
 ];
 
-const defaultStatusCodeRetry = [408, 429, 451, 500, 502, 503, 504];
+const statusCodeRetry = [408, 429, 451, 500, 502, 503, 504];
 
-const getParserFromMimeType = (value: string | undefined | null = ""): BodyParser => {
+const getParser = (value: string | undefined | null = ""): BodyParser => {
 	if (value === undefined || value === null) {
 		return "blob";
 	}
@@ -50,7 +42,7 @@ const getParserFromMimeType = (value: string | undefined | null = ""): BodyParse
 	return "blob";
 };
 
-const parseBodyRequest = (body: unknown | any) => {
+const parseBody = (body: unknown | any) => {
 	if (body === undefined || body === null) {
 		return null;
 	}
@@ -61,16 +53,16 @@ const parseBodyRequest = (body: unknown | any) => {
 };
 
 type Interceptor<T> = (
-	response: HermesSuccessResponse<T> | ResponseError<T>
-) => Promise<HermesSuccessResponse<T> | ResponseError<T>>;
+	response: ResponseSuccess<T> | ResponseError<T>
+) => Promise<ResponseSuccess<T> | ResponseError<T>>;
 
-const applyInterceptors = async <T>(
-	response: HermesSuccessResponse<T> | ResponseError<T>,
+const intercept = async <T>(
+	response: ResponseSuccess<T> | ResponseError<T>,
 	interceptors: Interceptor<T>[]
-): Promise<HermesSuccessResponse<T> | ResponseError<T>> => {
-	for (const callback of interceptors) {
+): Promise<ResponseSuccess<T> | ResponseError<T>> => {
+	for (const interceptor of interceptors) {
 		try {
-			const responseMutate = await callback(response);
+			const responseMutate = await interceptor(response);
 			response = { ...response, ...responseMutate };
 		} catch (error) {
 			response = { ...response, ...error };
@@ -79,9 +71,10 @@ const applyInterceptors = async <T>(
 	return response;
 };
 
-const voidFn = () => {};
-
-const tracking = (response: Response, onDownloadProgress: DownloadTracker = voidFn) => {
+const track = (response: Response, onDownloadProgress?: DownloadTracker) => {
+	if (onDownloadProgress === undefined) {
+		return response;
+	}
 	const total = Number(response.headers.get("content-length")) || 0;
 	let amount = 0;
 	const reader = response.body?.getReader();
@@ -91,15 +84,15 @@ const tracking = (response: Response, onDownloadProgress: DownloadTracker = void
 				onDownloadProgress({ percent: 0, transferred: 0, total, done: false }, new Uint8Array());
 				async function read() {
 					if (!!reader) {
-						const { done, value } = await reader.read();
+						const { done, value = new Uint8Array() } = await reader.read();
 						if (done) {
-							onDownloadProgress({ done, percent: 1, total, transferred: total }, value);
+							onDownloadProgress!({ done, percent: 1, total, transferred: total }, value);
 							controller.close();
 							return;
 						}
-						amount += value.byteLength;
+						amount += value?.byteLength;
 						const percent = total === 0 ? 0 : amount / total;
-						onDownloadProgress({ percent, transferred: amount, total, done }, value);
+						onDownloadProgress!({ percent, transferred: amount, total, done }, value);
 						controller.enqueue(value);
 						read();
 					}
@@ -123,15 +116,22 @@ const getIsomorphicFetch = () => {
 	global.AbortController = require("abort-controller");
 	return nodeFetch;
 };
-
-export const Hermes = ({
-	throwOnHttpError = true,
+const initial = {
+	requestInterceptors: [],
+	baseUrl: "",
+	avoidDuplicateRequests: false,
+	headers: {},
+	globalTimeout: 0,
+	retryStatusCode: statusCodeRetry
+};
+export const HermesHttp = ({
 	requestInterceptors = [],
 	baseUrl = "",
 	headers = {},
+	avoidDuplicateRequests = false,
 	globalTimeout = 0,
-	retryStatusCode = defaultStatusCodeRetry
-}: HermesConfig) => {
+	retryStatusCode = statusCodeRetry
+}: HermesConfig = initial) => {
 	let abortRequest = false;
 	const isomorphicFetch = getIsomorphicFetch();
 	const header = new Header(headers ?? {});
@@ -139,7 +139,7 @@ export const Hermes = ({
 	const errorResponseInterceptors: any[] = [];
 	const successResponseInterceptors: any[] = [];
 
-	const requestMethod = async <BodyType, ErrorResponse>(
+	const client = async <BodyType, ErrorResponse>(
 		{
 			url,
 			body,
@@ -150,21 +150,24 @@ export const Hermes = ({
 			retryAfter = 0,
 			query = "",
 			signal,
-			onDownload
+			onDownload,
+			cors = "cors",
+			credentials = "same-origin",
+			redirect = "follow"
 		}: RequestConfig<BodyType>,
-		timeoutConcurrent?: NodeJS.Timeout | null
-	): Promise<HermesSuccessResponse<BodyType>> =>
+		raceTimeout?: NodeJS.Timeout | null
+	): Promise<ResponseSuccess<BodyType>> =>
 		new Promise(async (resolve, reject) => {
 			headers.forEach((value: string, key: string) => header.get().set(key, value));
 			let request = {
-				body: parseBodyRequest(body),
-				cache: "no-store" as Cache,
-				credentials: "same-origin" as CorsMode,
+				body: parseBody(body),
+				cache: "no-cache",
+				credentials,
 				headers: header.get(),
 				keepalive: false,
 				method,
-				mode: "cors" as CorsMode,
-				redirect: "follow" as RedirectMode,
+				mode: cors,
+				redirect,
 				referrer: "no-referrer",
 				signal: signal!
 			};
@@ -175,9 +178,9 @@ export const Hermes = ({
 					const promiseValue = await interceptor({ ...request, url });
 					request = { ...request, ...promiseValue.request };
 					abortRequest = promiseValue.abort ?? false;
-				} catch (error) {
-					request = { ...request, ...error.request };
-					abortRequest = error.abort ?? false;
+				} catch (e) {
+					request = { ...request, ...e.request };
+					abortRequest = e.abort ?? false;
 				}
 			}
 
@@ -186,23 +189,44 @@ export const Hermes = ({
 					...new Response(),
 					data: null,
 					headers: {},
-					error: "AbortRequest"
-				} as any;
-				return throwOnHttpError ? reject(abortResponse) : resolve(abortResponse as any);
+					error: "aborted"
+				} as never;
+				return reject(abortResponse);
 			}
+
 			let requestUrl = baseUrl.trim() === "" ? url : concatUrl(baseUrl, url);
 
 			if (query.trim() !== "") {
 				requestUrl += `?${query}`;
 			}
 
-			const response = (await isomorphicFetch!(requestUrl, request)) as Response;
+			let promiseResponse = null;
 
-			if (timeoutConcurrent !== null) {
-				clearTimeout(timeoutConcurrent as any);
+			if (avoidDuplicateRequests) {
+				if (requestMap.has(requestUrl)) {
+					promiseResponse = requestMap.get(requestUrl);
+				} else {
+					promiseResponse = isomorphicFetch(requestUrl, request);
+					requestMap.set(requestUrl, promiseResponse);
+				}
+			} else {
+				promiseResponse = isomorphicFetch(requestUrl, request);
 			}
-			const stream = isBrowser ? tracking(response.clone(), onDownload) : response.clone();
-			const contentType = getParserFromMimeType(response.headers.get("content-type"));
+
+			let response: Response = new Response();
+			try {
+				response = (await promiseResponse) as Response;
+			} catch (e) {
+				return reject(e);
+			}
+
+			requestMap.delete(requestUrl);
+
+			if (raceTimeout !== null) {
+				clearTimeout(raceTimeout as any);
+			}
+			const stream = isBrowser ? track(response, onDownload) : response;
+			const contentType = getParser(response.headers.get("content-type"));
 			const bodyData = await stream[contentType]();
 			const responseHeaders: RawHeaders = {};
 
@@ -221,30 +245,38 @@ export const Hermes = ({
 			};
 
 			if (response.ok) {
-				return resolve(applyInterceptors(common as never, successResponseInterceptors) as never);
+				return resolve(intercept(common as never, successResponseInterceptors) as never);
 			}
-			const bodyError = (await applyInterceptors(
+			const bodyError = (await intercept(
 				{
 					...common,
 					error: response.statusText ?? response.status ?? null
 				} as never,
 				errorResponseInterceptors
 			)) as ResponseError<ErrorResponse>;
+
 			if (retries <= 1) {
-				return throwOnHttpError ? reject(bodyError) : resolve(bodyError as never);
+				return reject(bodyError);
 			}
+
 			return setTimeout(
 				() =>
-					requestMethod({
+					client({
+						cors,
+						credentials,
+						onDownload,
+						query,
+						redirect,
+						signal,
 						body,
 						headers,
 						method,
 						retries: retries - 1,
 						retryAfter,
-						retryOnCodes: retryOnCodes.concat(retryStatusCode),
+						retryOnCodes,
 						url
 					})
-						.then(resolve as any)
+						.then(resolve)
 						.catch(reject),
 				retryAfter
 			);
@@ -257,17 +289,19 @@ export const Hermes = ({
 		{
 			query = {},
 			encodeQueryString = true,
-			arrayQueryFormat: arrayFormatQueryString = "index",
 			retries = 0,
 			controller = new AbortController(),
 			timeout = globalTimeout,
 			retryCodes = retryStatusCode,
 			headers = new Headers(),
 			onDownload,
+			cors,
+			credentials,
+			redirect,
 			retryAfter = 0,
 			omitHeaders = []
 		}: RequestParameters
-	): Promise<HermesSuccessResponse<T>> => {
+	): Promise<ResponseSuccess<T>> => {
 		const { signal } = controller;
 
 		omitHeaders.forEach((x) => {
@@ -276,12 +310,7 @@ export const Hermes = ({
 			}
 		});
 
-		const queryStr = qsEmpty(query)
-			? ""
-			: qs(query, {
-					array: arrayFormatQueryString,
-					encode: encodeQueryString
-			  });
+		const queryStr = isEmpty(query) ? "" : qs(query, { encode: encodeQueryString });
 
 		const parameters = {
 			body,
@@ -290,6 +319,9 @@ export const Hermes = ({
 			onDownload,
 			query: queryStr,
 			retries,
+			cors,
+			credentials,
+			redirect,
 			retryAfter,
 			retryOnCodes: retryCodes,
 			signal,
@@ -297,23 +329,27 @@ export const Hermes = ({
 		} as RequestConfig<T>;
 
 		if (timeout <= 0) {
-			return requestMethod(parameters);
+			return client(parameters);
 		}
 
 		let timer: NodeJS.Timeout | null = null;
 
-		return Promise.race<any>([
-			new Promise((_, reject) => {
-				timer = setTimeout(() => {
-					controller.abort();
-					return reject(timeoutError);
-				}, timeout);
-			}),
-			requestMethod(parameters, timer)
-		]);
+		try {
+			return Promise.race<any>([
+				new Promise((_resolve, reject) => {
+					timer = setTimeout(() => {
+						controller.abort();
+						return reject(timeoutError);
+					}, timeout);
+				}),
+				client(parameters, timer)
+			]);
+		} catch {
+			return Promise.reject(timeoutError);
+		}
 	};
 
-	const hermes: HermesClient = {
+	const hermes: Hermes = {
 		addHeader(key: string, value: string) {
 			header.addHeader(key, value);
 			return hermes;
@@ -321,9 +357,7 @@ export const Hermes = ({
 		delete: <T>(url: string, params: RequestParameters = {}) => exec<T>(url, null, "DELETE", params),
 		get: <T>(url: string, params: RequestParameters = {}) => exec<T>(url, null, "GET", params),
 		getHeaders: () => header.get(),
-		getRetryCodes() {
-			return [...retryStatusCode];
-		},
+		getRetryCodes: () => [...retryStatusCode],
 		patch: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "PATCH", params),
 		post: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "POST", params),
 		put: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "PUT", params),

@@ -7,8 +7,6 @@ export default class Header {
 		this.headers = new Headers();
 		this.headers.append("User-Agent", "hermes-http");
 		this.headers.append("Accept-Encoding", "gzip, deflate");
-		this.headers.append("Accept", "application/json, text/plain, */*");
-		this.headers.append("Content-Type", "application/json;charset=UTF-8");
 		Object.entries(headers).forEach(([key, value]) => this.headers.append(key, `${value}`));
 	}
 

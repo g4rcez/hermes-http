@@ -37,12 +37,10 @@ const hermes = Hermes({ avoidDuplicateRequests: true });
 
 const request = (n: number) =>
 	hermes
-		.get<GithubUser>("https://api.github.com/users/octocat")
+		.get<GithubUser>("https://api.github.com/users/octocat", { timeout: 10 })
 		.then(() => {
 			console.log(n, "- ta bem");
 		})
 		.catch((e: ResponseError<{ ok: true }>) => console.log("falhou", e));
 
-request(1);
-request(2);
-request(3);
+request(2).catch(console.error);
