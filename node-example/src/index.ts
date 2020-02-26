@@ -1,4 +1,4 @@
-import Hermes, { ResponseError } from "hermes-http";
+import Hermes, { httpErrorInterceptor, HttpResponseError } from "hermes-http";
 type GithubUser = {
 	login: string;
 	id: number;
@@ -33,14 +33,16 @@ type GithubUser = {
 	updated_at: string;
 };
 
-const hermes = Hermes({ avoidDuplicateRequests: true });
+const hermes = Hermes({ avoidDuplicateRequests: true }).errorResponseInterceptor(httpErrorInterceptor);
 
 const request = (n: number) =>
 	hermes
-		.get<GithubUser>("https://api.github.com/users/octocat", { timeout: 10 })
-		.then(() => {
-			console.log(n, "- ta bem");
-		})
-		.catch((e: ResponseError<{ ok: true }>) => console.log("falhou", e));
+		.get<GithubUser>("https://api.github.com/users/octocatx" + n, { timeout: 1000 })
+		.then(console.info)
+		.catch((e: HttpResponseError<unknown>) => {
+			if (e.httpError !== null) {
+				console.log({ ...e });
+			}
+		});
 
 request(2).catch(console.error);
