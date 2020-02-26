@@ -1,7 +1,6 @@
 import Header from "./header";
 import {
 	BodyParser,
-	DownloadTracker,
 	ErrorInterceptor,
 	Hermes,
 	HermesConfig,
@@ -16,9 +15,9 @@ import {
 } from "./hermes-http-types";
 import { concatUrl, isEmpty, qs } from "./utils";
 
-const requestMap = new Map<string, Promise<any>>();
+const requestMap = new Map<string, Promise<any> | null>();
 
-const timeoutError = { data: null, error: "timeout", headers: {}, ok: false, status: 0, statusText: "" };
+const timeoutError = { data: null, error: "timeout", headers: {}, ok: false, status: 408, statusText: "" };
 
 const mimeTypes = [
 	["json", "application/json"],
@@ -71,38 +70,6 @@ const intercept = async <T>(
 	return response;
 };
 
-const track = (response: Response, onDownloadProgress?: DownloadTracker) => {
-	if (onDownloadProgress === undefined) {
-		return response;
-	}
-	const total = Number(response.headers.get("content-length")) || 0;
-	let amount = 0;
-	const reader = response.body?.getReader();
-	return new Response(
-		new ReadableStream({
-			start(controller) {
-				onDownloadProgress({ percent: 0, transferred: 0, total, done: false }, new Uint8Array());
-				async function read() {
-					if (!!reader) {
-						const { done, value = new Uint8Array() } = await reader.read();
-						if (done) {
-							onDownloadProgress!({ done, percent: 1, total, transferred: total }, value);
-							controller.close();
-							return;
-						}
-						amount += value?.byteLength;
-						const percent = total === 0 ? 0 : amount / total;
-						onDownloadProgress!({ percent, transferred: amount, total, done }, value);
-						controller.enqueue(value);
-						read();
-					}
-				}
-				read();
-			}
-		})
-	);
-};
-
 const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
 
 const getIsomorphicFetch = () => {
@@ -117,7 +84,6 @@ const getIsomorphicFetch = () => {
 	return nodeFetch;
 };
 const initial = {
-	requestInterceptors: [],
 	baseUrl: "",
 	avoidDuplicateRequests: false,
 	headers: {},
@@ -125,7 +91,6 @@ const initial = {
 	retryStatusCode: statusCodeRetry
 };
 export const HermesHttp = ({
-	requestInterceptors = [],
 	baseUrl = "",
 	headers = {},
 	avoidDuplicateRequests = false,
@@ -136,6 +101,7 @@ export const HermesHttp = ({
 	const isomorphicFetch = getIsomorphicFetch();
 	const header = new Header(headers ?? {});
 
+	const requestInterceptors: any[] = [];
 	const errorResponseInterceptors: any[] = [];
 	const successResponseInterceptors: any[] = [];
 
@@ -150,7 +116,6 @@ export const HermesHttp = ({
 			retryAfter = 0,
 			query = "",
 			signal,
-			onDownload,
 			cors = "cors",
 			credentials = "same-origin",
 			redirect = "follow"
@@ -200,11 +165,11 @@ export const HermesHttp = ({
 				requestUrl += `?${query}`;
 			}
 
-			let promiseResponse = null;
+			let promiseResponse: Promise<any> | null = null;
 
 			if (avoidDuplicateRequests) {
 				if (requestMap.has(requestUrl)) {
-					promiseResponse = requestMap.get(requestUrl);
+					promiseResponse = requestMap.get(requestUrl) ?? null;
 				} else {
 					promiseResponse = isomorphicFetch(requestUrl, request);
 					requestMap.set(requestUrl, promiseResponse);
@@ -220,14 +185,14 @@ export const HermesHttp = ({
 				return reject(e);
 			}
 
-			requestMap.delete(requestUrl);
-
 			if (raceTimeout !== null) {
 				clearTimeout(raceTimeout as any);
 			}
-			const stream = isBrowser ? track(response, onDownload) : response;
+
+			requestMap.delete(requestUrl);
+
 			const contentType = getParser(response.headers.get("content-type"));
-			const bodyData = await stream[contentType]();
+			const bodyData = await response.clone()[contentType]();
 			const responseHeaders: RawHeaders = {};
 
 			response.headers.forEach((value: string, name: string) => {
@@ -264,7 +229,6 @@ export const HermesHttp = ({
 					client({
 						cors,
 						credentials,
-						onDownload,
 						query,
 						redirect,
 						signal,
@@ -294,7 +258,6 @@ export const HermesHttp = ({
 			timeout = globalTimeout,
 			retryCodes = retryStatusCode,
 			headers = new Headers(),
-			onDownload,
 			cors,
 			credentials,
 			redirect,
@@ -316,7 +279,6 @@ export const HermesHttp = ({
 			body,
 			headers,
 			method,
-			onDownload,
 			query: queryStr,
 			retries,
 			cors,
