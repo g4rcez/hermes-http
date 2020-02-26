@@ -1,4 +1,4 @@
-import { AnyText, RawHeaders } from "./hermes-http-types";
+import { Txt, RawHeaders } from "./hermes-http-types";
 
 export default class Header {
 	private headers: Headers;
@@ -10,7 +10,7 @@ export default class Header {
 		Object.entries(headers).forEach(([key, value]) => this.headers.append(key, `${value}`));
 	}
 
-	public addHeader(header: string, value: AnyText = "") {
+	public addHeader(header: string, value: Txt = "") {
 		this.headers.append(header, `${value}`);
 	}
 
