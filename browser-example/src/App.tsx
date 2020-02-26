@@ -1,36 +1,34 @@
-import Hermes from "hermes-http";
+import Hermes, { fetchCache } from "hermes-http";
 import React, { useEffect, useState } from "react";
 
-const hermes = Hermes({ avoidDuplicateRequests: true });
+const hermes = Hermes({
+	avoidDuplicateRequests: true,
+	globalTimeout: 10000,
+	baseUrl: "https://api.postmon.com.br/v1/cep/"
+}).successResponseInterceptor(fetchCache);
 
-export default function App() {
+function App({ cep }: { cep: string }) {
 	const [state, setState] = useState({});
 	useEffect(() => {
 		hermes
-			.get("https://api.postmon.com.br/v1/cep/38706400")
-			.then((e) => {
-				console.log(e);
-				setState(e);
-			})
+			.get(cep)
+			.then(setState)
 			.catch(setState);
-		hermes
-			.get("https://api.postmon.com.br/v1/cep/38706400")
-			.then((e) => {
-				console.log(e);
-				setState(e);
-			})
-			.catch(setState);
-		hermes
-			.get("https://api.postmon.com.br/v1/cep/38706400")
-			.then((e) => {
-				console.log(e);
-				setState(e);
-			})
-			.catch(setState);
-	}, []);
+	}, [cep]);
 	return (
 		<pre>
 			<code>{JSON.stringify(state, null, 4)}</code>
 		</pre>
+	);
+}
+
+export default function AppAppApp() {
+	return (
+		<div>
+			<App cep="38706400"></App>
+			<App cep="70040020"></App>
+			<App cep="70040020"></App>
+			<App cep="38706400"></App>
+		</div>
 	);
 }
