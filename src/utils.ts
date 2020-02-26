@@ -44,13 +44,14 @@ export const qs = <T extends string>(args: QueryString<T>, opt: Options = { enco
 	}
 
 	const nonNull = Object.entries(args).reduce(
-		(acc, [key, value]) => (args[key] !== undefined || args[key] !== null ? { ...acc, [key]: value } : acc),
+		(acc, [key, value]: [any, any]) =>
+			(args[key] !== undefined || args[key] !== null ? { ...acc, [key]: value } : acc) as string,
 		{}
 	);
 
 	return Object.entries(nonNull)
 		.map(
-			([key, val]: [string, string]) =>
+			([key, val]: [any, any]) =>
 				Array.isArray(val)
 					? val.reduce(encodeArray(key, opt), []).join("&")
 					: enc(key, opt) + "=" + enc(val, opt),
