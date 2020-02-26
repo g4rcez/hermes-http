@@ -1,14 +1,20 @@
 import { QueryString } from "./utils";
 
-export type AnyText = string | number | boolean;
+export type Txt = string | number | boolean;
 
 export type BodyParser = "json" | "text" | "formData" | "arrayBuffer" | "blob";
 
-export type RawHeaders = { [key: string]: AnyText };
+export type HttpMethods = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD";
 
-export type DownloadTracking = { done: boolean; percent: number; total: number; transferred: number };
+export type Cache = "default" | "no-store" | "reload" | "no-cache" | "force-cache" | "only-if-cached";
 
-export type DownloadTracker = (parameters: DownloadTracking, bytes: Uint8Array | undefined) => void;
+export type CredentialsMode = "same-origin" | "omit" | "include";
+
+export type CorsMode = "same-origin" | "cors" | "no-cors";
+
+export type RedirectMode = "follow" | "error" | "manual";
+
+export type RawHeaders = { [key: string]: Txt };
 
 export type ResponseSuccess<Body> = {
 	url: string;
@@ -41,16 +47,6 @@ export type ResponseError<T> = null extends T
 			status: number;
 			statusText: string | null;
 	  };
-
-export type HttpMethods = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD";
-
-export type Cache = "default" | "no-store" | "reload" | "no-cache" | "force-cache" | "only-if-cached";
-
-export type CredentialsMode = "same-origin" | "omit" | "include";
-
-export type CorsMode = "same-origin" | "cors" | "no-cors";
-
-export type RedirectMode = "follow" | "error" | "manual";
 
 export type RequestInterceptorParameter<T> = {
 	body: T;
@@ -89,7 +85,6 @@ export type SuccessInterceptor<T> = (response: ResponseSuccess<T>) => Promise<Re
 export type ErrorInterceptor<T> = (response: ResponseError<T>) => Promise<ResponseError<T>>;
 
 export type RequestConfig<T> = {
-	onDownload?: DownloadTracker;
 	query?: string;
 	retryAfter: number;
 	redirect?: RedirectMode;
@@ -107,7 +102,6 @@ export type RequestConfig<T> = {
 export type RequestParameters = Partial<{
 	query: QueryString<any>;
 	encodeQueryString: boolean;
-	onDownload: DownloadTracker;
 	headers: Headers;
 	redirect?: RedirectMode;
 	cors?: CorsMode;
@@ -125,10 +119,6 @@ export type HermesConfig = Partial<{
 	baseUrl: string;
 	globalTimeout: number;
 	headers: RawHeaders;
-	requestInterceptors: RequestInterceptor[];
-	successResponseInterceptors: SuccessInterceptor<unknown>[];
-	errorResponseInterceptors: SuccessInterceptor<unknown>[];
-	responseType: string;
 	retryStatusCode: number[];
 }>;
 
