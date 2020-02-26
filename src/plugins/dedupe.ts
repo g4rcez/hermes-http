@@ -1,5 +1,4 @@
-import { ResponseSuccess, RequestInterceptorParameter, ResponseError } from "../../dist/hermes-http-types";
-import { Hermes } from "../hermes-http-types";
+import { Hermes, RequestInterceptorParameter, ResponseError, ResponseSuccess } from "../hermes-http-types";
 
 type DedupeMap = Map<
 	string,
