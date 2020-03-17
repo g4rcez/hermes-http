@@ -1,4 +1,6 @@
 import Header from "./header";
+import { HttpErrorCodes, statusCodeRetry } from "./helpers/http-codes";
+import { intercept } from "./helpers/interceptors";
 import {
 	BodyParser,
 	ErrorInterceptor,
@@ -13,11 +15,18 @@ import {
 	ResponseSuccess,
 	SuccessInterceptor
 } from "./hermes-http-types";
-import { concatUrl, isEmpty, qs } from "./utils";
+import { concatUrl, qs } from "./utils";
 
 const requestMap = new Map<string, Promise<any> | null>();
 
-const timeoutError = { data: null, error: "timeout", headers: {}, ok: false, status: 408, statusText: "" };
+const timeoutError = {
+	data: null,
+	error: "timeout",
+	headers: {},
+	ok: false,
+	status: HttpErrorCodes.REQUEST_TIMEOUT,
+	statusText: ""
+};
 
 const mimeTypes = [
 	["json", "application/json"],
@@ -25,8 +34,6 @@ const mimeTypes = [
 	["text", "text/"],
 	["blob", "*/*"]
 ];
-
-const statusCodeRetry = [408, 429, 451, 500, 502, 503, 504];
 
 const getParser = (value: string | undefined | null = ""): BodyParser => {
 	if (value === undefined || value === null) {
@@ -51,54 +58,36 @@ const parseBody = (body: unknown | any) => {
 	return body;
 };
 
-type Interceptor<T> = (
-	response: ResponseSuccess<T> | ResponseError<T>
-) => Promise<ResponseSuccess<T> | ResponseError<T>>;
-
-const intercept = async <T>(
-	response: ResponseSuccess<T> | ResponseError<T>,
-	interceptors: Interceptor<T>[]
-): Promise<ResponseSuccess<T> | ResponseError<T>> => {
-	for (const interceptor of interceptors) {
-		try {
-			const responseMutate = await interceptor(response);
-			response = { ...response, ...responseMutate };
-		} catch (error) {
-			response = { ...response, ...error };
-		}
-	}
-	return response;
-};
-
 const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
 
-const getIsomorphicFetch = () => {
-	if (isBrowser) {
-		return window.fetch;
-	}
-	const nodeFetch = require("node-fetch");
+let nodeFetch: any;
+
+if (!isBrowser) {
+	nodeFetch = require("node-fetch");
 	global.fetch = nodeFetch;
 	global.Headers = nodeFetch.Headers;
 	global.Response = nodeFetch.Response;
 	global.AbortController = require("abort-controller");
-	return nodeFetch;
-};
+}
+
+const getIsomorphicFetch = () => (isBrowser ? window.fetch : nodeFetch);
+
 const initial = {
-	baseUrl: "",
 	avoidDuplicateRequests: false,
-	headers: {},
+	baseUrl: "",
 	globalTimeout: 0,
+	headers: {},
 	retryStatusCode: statusCodeRetry
 };
 export const HermesHttp = ({
-	baseUrl = "",
-	headers = {},
 	avoidDuplicateRequests = false,
+	baseUrl = "",
 	globalTimeout = 0,
+	headers = {},
 	retryStatusCode = statusCodeRetry
 }: HermesConfig = initial) => {
-	let abortRequest = false;
 	const isomorphicFetch = getIsomorphicFetch();
+	let abortRequest = false;
 	const header = new Header(headers ?? {});
 
 	const requestInterceptors: any[] = [];
@@ -273,7 +262,8 @@ export const HermesHttp = ({
 			}
 		});
 
-		const queryStr = isEmpty(query) ? "" : qs(query, { encode: encodeQueryString });
+		const queryStr = qs(query, { encode: encodeQueryString });
+		console.log({ query, queryStr });
 
 		const parameters = {
 			body,
@@ -317,7 +307,7 @@ export const HermesHttp = ({
 			return hermes;
 		},
 		delete: <T>(url: string, params: RequestParameters = {}) => exec<T>(url, null, "DELETE", params),
-		get: <T>(url: string, params: RequestParameters = {}) => exec<T>(url, null, "GET", params),
+		get: <T extends any>(url: string, params: RequestParameters = {}) => exec<T>(url, null, "GET", params),
 		getHeaders: () => header.get(),
 		getRetryCodes: () => [...retryStatusCode],
 		patch: <T>(url: string, body: unknown, params: RequestParameters = {}) => exec<T>(url, body, "PATCH", params),
