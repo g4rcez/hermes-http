@@ -16,14 +16,14 @@ export type RedirectMode = "follow" | "error" | "manual";
 
 export type RawHeaders = { [key: string]: Txt };
 
-export type ResponseSuccess<Body> = {
-	url: string;
+export type ResponseSuccess<Body extends any> = {
 	data: Body;
 	error: null;
 	headers: { [key: string]: string };
 	ok: boolean;
 	status: number;
 	statusText: string | null;
+	url: string;
 };
 
 type UnTypeResponse<T> = {
@@ -124,14 +124,14 @@ export type HermesConfig = Partial<{
 
 export type Hermes = {
 	addHeader: (key: string, value: string) => Hermes;
-	delete: <T>(url: string, body?: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
+	delete: <T extends any>(url: string, body?: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
 	errorResponseInterceptor: <T>(interceptorFunction: ErrorInterceptor<T>) => Hermes;
-	get: <T>(url: string, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
+	get: <T extends any>(url: string, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
 	getHeaders: () => Headers;
 	getRetryCodes: () => number[];
-	patch: <T>(url: string, body: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
-	post: <T>(url: string, body: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
-	put: <T>(url: string, body: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
+	patch: <T extends any>(url: string, body: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
+	post: <T extends any>(url: string, body: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
+	put: <T extends any>(url: string, body: any, params?: RequestParameters) => Promise<ResponseSuccess<T>>;
 	requestInterceptor: (interceptorFunction: RequestInterceptor) => Hermes;
 	successResponseInterceptor: <T>(interceptorFunction: SuccessInterceptor<T>) => Hermes;
 };
