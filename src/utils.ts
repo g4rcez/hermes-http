@@ -39,10 +39,6 @@ export const encodeArray = (key: string, options: Options) => (result: string[],
 };
 
 export const qs = <T extends string>(args: QueryString<T>, opt: Options = { encode: true, strict: true }) => {
-	if (!!!args) {
-		return "";
-	}
-
 	const nonNull = Object.entries(args).reduce(
 		(acc, [key, value]: [any, any]) =>
 			(args[key] !== undefined || args[key] !== null ? { ...acc, [key]: value } : acc) as string,
