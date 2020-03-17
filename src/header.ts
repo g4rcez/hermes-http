@@ -14,10 +14,6 @@ export default class Header {
 		this.headers.append(header, `${value}`);
 	}
 
-	public getHeader(name: string) {
-		return this.headers.get(name);
-	}
-
 	public get() {
 		return this.headers;
 	}
