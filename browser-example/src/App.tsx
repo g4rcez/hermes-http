@@ -1,34 +1,41 @@
 import Hermes, { fetchCache } from "hermes-http";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 const hermes = Hermes({
 	avoidDuplicateRequests: true,
-	globalTimeout: 10000,
-	baseUrl: "https://api.postmon.com.br/v1/cep/"
+	globalTimeout: 10000
 }).successResponseInterceptor(fetchCache);
 
-function App({ cep }: { cep: string }) {
-	const [state, setState] = useState({});
-	useEffect(() => {
-		hermes
-			.get(cep)
-			.then(setState)
-			.catch(setState);
-	}, [cep]);
+function App() {
+	const [file, setFile] = useState<File>();
+
+	const onSubmit = (e: any) => {
+		e.preventDefault();
+		const form = new FormData();
+		console.log({ file });
+		form.append("file", file as any);
+		const headers = new Headers();
+		headers.set("Content-Type", "multipart/form-data;boundary=----WebKitFormBoundaryprgHUtVK2ez7ORTh;");
+		hermes.post("http://localhost:3030/upload", form);
+	};
+
 	return (
-		<pre>
-			<code>{JSON.stringify(state, null, 4)}</code>
-		</pre>
+		<form onSubmit={onSubmit}>
+			<input
+				type="file"
+				onChange={(e) => {
+					setFile(e.target.files![0]);
+				}}
+			/>
+			<button type="submit">Submit</button>
+		</form>
 	);
 }
 
 export default function AppAppApp() {
 	return (
 		<div>
-			<App cep="38706400"></App>
-			<App cep="70040020"></App>
-			<App cep="70040020"></App>
-			<App cep="38706400"></App>
+			<App></App>
 		</div>
 	);
 }

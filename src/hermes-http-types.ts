@@ -102,7 +102,7 @@ export type RequestConfig<T> = {
 export type RequestParameters = Partial<{
 	query: QueryString<any>;
 	encodeQueryString: boolean;
-	headers: Headers;
+	headers: { [key: string]: string | undefined };
 	redirect?: RedirectMode;
 	cors?: CorsMode;
 	credentials?: CorsMode;

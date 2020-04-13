@@ -246,7 +246,7 @@ export const HermesHttp = ({
 			controller = new AbortController(),
 			timeout = globalTimeout,
 			retryCodes = retryStatusCode,
-			headers = new Headers(),
+			headers = {},
 			cors,
 			credentials,
 			redirect,
@@ -257,17 +257,16 @@ export const HermesHttp = ({
 		const { signal } = controller;
 
 		omitHeaders.forEach((x) => {
-			if (headers.has(x)) {
-				headers.delete(x);
+			if (x in headers) {
+				headers[x] = undefined;
 			}
 		});
 
 		const queryStr = qs(query, { encode: encodeQueryString });
-		console.log({ query, queryStr });
 
 		const parameters = {
 			body,
-			headers,
+			headers: new Headers(...(Object.entries(headers).filter(Boolean) as any)),
 			method,
 			query: queryStr,
 			retries,

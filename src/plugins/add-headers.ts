@@ -1,5 +1,12 @@
 import { RequestInterceptorParameter } from "../hermes-http-types";
 
-export const addHeaders = (callback: (requestHeaders: Headers) => Headers) => async (
+type RawHeaders = { [key: string]: string };
+export const addHeaders = (callback: (requestHeaders: RawHeaders) => RawHeaders) => async (
 	e: RequestInterceptorParameter<never>
-) => callback(e.headers);
+) => {
+	const headers = {};
+	e.headers.forEach(([value, key]) => {
+		headers[key] = value;
+	});
+	return callback(headers);
+};
