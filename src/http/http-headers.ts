@@ -22,17 +22,5 @@ export default class HttpHeaders {
 		return responseHeaders;
 	}
 
-	public static concatHeaders(...headers: Array<undefined | Headers>) {
-		const responseHeaders = new Headers();
-		headers.forEach((header) => {
-			(header || new Headers()).forEach((value: string, name: string) => {
-				responseHeaders.append(name, value);
-			});
-		});
-		return responseHeaders;
-	}
-
-	public get() {
-		return this.headers;
-	}
+	public get = () => this.headers;
 }

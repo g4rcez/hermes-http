@@ -29,7 +29,7 @@ export const hermes = async <T>(url: string, params: FetchParams): Promise<Respo
 		retries: params.retries ?? 0,
 		timeout: params.timeout || 0,
 		headers: params.headers || new HttpHeaders(),
-		retryInterval: params.retryInterval || 10000
+		retryInterval: params.retryInterval || 1000
 	};
 	return new Promise(async (resolve, reject) => {
 		let timer: any = null;
@@ -97,17 +97,16 @@ export const hermes = async <T>(url: string, params: FetchParams): Promise<Respo
 
 		common.error = response.statusText ?? response.status ?? null;
 
-		if (args.retries <= 1 || args.statusCodeRetry.includes(common.status)) {
-			return reject(common);
+		if (args.retries > 1 && args.statusCodeRetry.includes(common.status)) {
+			return setTimeout(
+				() =>
+					hermes(url, { ...args, retries: args.retries - 1 })
+						.then(resolve as any)
+						.catch(reject),
+				args.retryInterval
+			);
 		}
-
-		return setTimeout(
-			() =>
-				hermes(url, { ...args, retries: args.retries - 1 })
-					.then(resolve as any)
-					.catch(reject),
-			args.retryInterval
-		);
+		return reject(common);
 	});
 };
 

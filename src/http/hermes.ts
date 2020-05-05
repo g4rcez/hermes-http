@@ -144,17 +144,17 @@ export class Hermes {
 		}
 	}
 
-	public requestInterceptor(interceptorFunction: RequestInterceptor) {
-		this.requestInterceptors.push(interceptorFunction);
+	public requestInterceptor(interceptor: RequestInterceptor) {
+		this.requestInterceptors.push(interceptor);
 		return this;
 	}
-	public successResponseInterceptor<T>(interceptorFunction: SuccessInterceptor<T>) {
-		this.successResponseInterceptors.push(interceptorFunction);
+	public successResponseInterceptor<T>(interceptor: SuccessInterceptor<T>) {
+		this.successResponseInterceptors.push(interceptor);
 		return this;
 	}
 
-	public errorResponseInterceptor<T>(interceptorFunction: ErrorInterceptor<T>) {
-		this.errorResponseInterceptors.push(interceptorFunction);
+	public errorResponseInterceptor<T>(interceptor: ErrorInterceptor<T>) {
+		this.errorResponseInterceptors.push(interceptor);
 		return this;
 	}
 
