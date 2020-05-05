@@ -1,9 +1,9 @@
 import Hermes, { httpErrorInterceptor, HttpResponseError } from "hermes-http";
 
-const hermes = Hermes({ avoidDuplicateRequests: true }).errorResponseInterceptor(httpErrorInterceptor);
+const hermes = new Hermes({ avoidDuplicateRequests: true }).errorResponseInterceptor(httpErrorInterceptor);
 
 hermes
-	.get<{ results: string[] }>("https://swapi.co/api/people", {
+	.get<{ results: string[] }>("https://swapi.dev/api/people/1", {
 		query: {
 			search: "r2"
 		}

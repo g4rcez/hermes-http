@@ -1,9 +1,10 @@
 *.log
 .DS_Store
-.vscode
-node_modules
+.vscode/
+node_modules/
 .rts2_cache_cjs
 .rts2_cache_esm
 .rts2_cache_umd
 .rts2_cache_system
-dist
+dist/
+build/
