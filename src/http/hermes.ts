@@ -12,20 +12,20 @@ import {
 	Config,
 	Interceptor
 } from "../types";
-import { hermes } from "./single-hermes";
+import { hermes } from "./http-client";
 import { statusCodeRetry } from "./codes";
 import userAbortError from "./user-abort-error";
 
 export class Hermes {
 	private requestMap: Map<string, Promise<any> | null>;
 	private requestInterceptors: RequestInterceptor[];
-	private successResponseInterceptors: SuccessInterceptor<unknown>[];
+	private successResponseInterceptors: SuccessInterceptor<any>[];
 	private errorResponseInterceptors: ErrorInterceptor<any>[];
-	private internal: Config;
+	public configuration: Config;
 
 	public constructor(config?: Config) {
 		this.errorResponseInterceptors = [];
-		this.internal = {
+		this.configuration = {
 			...config,
 			cache: "no-cache",
 			redirect: "follow",
@@ -37,12 +37,12 @@ export class Hermes {
 			avoidDuplicateRequests: true
 		};
 		this.requestInterceptors = [];
-		this.requestMap = new Map<string, Promise<any> | null>();
+		this.requestMap = new Map<string, Promise<any>>();
 		this.successResponseInterceptors = [];
 	}
 
 	private mockRequest<T>(url: string, promise: () => Promise<ResponseSuccess<T>>): Promise<ResponseSuccess<T>> {
-		if (this.internal.avoidDuplicateRequests) {
+		if (this.configuration.avoidDuplicateRequests) {
 			if (this.requestMap.has(url)) {
 				return this.requestMap.get(url)!;
 			} else {
@@ -55,10 +55,10 @@ export class Hermes {
 	}
 
 	private getDefaults = (key: keyof RequestConfig, config: RequestConfig) =>
-		config[key] !== undefined ? config[key] : this.internal[key];
+		config[key] !== undefined ? config[key] : (this.configuration as RequestConfig)[key];
 
 	private getInternalConfig = () => {
-		const { avoidDuplicateRequests, baseUrl, ...config } = this.internal;
+		const { avoidDuplicateRequests, baseUrl, ...config } = this.configuration;
 		return { config, baseUrl, avoidDuplicateRequests };
 	};
 
@@ -89,10 +89,10 @@ export class Hermes {
 			try {
 				const promiseValue = await interceptor({ ...req });
 				request = { ...req, ...promiseValue.request };
-				abort = promiseValue.abort ?? false;
+				abort = promiseValue.abort || false;
 			} catch (e) {
 				request = { ...req, ...e.request };
-				abort = e.abort ?? false;
+				abort = e.abort || false;
 			}
 		}
 		return { abort, request };
@@ -119,7 +119,6 @@ export class Hermes {
 
 	private async request<T>(url: string, method: HttpMethods, body: any, config: RequestConfig) {
 		const { baseUrl, config: defaults } = this.getInternalConfig();
-
 		const base = baseUrl || "";
 		let requestUrl = base === "" ? url : concatUrl(base, url);
 		const queryStr = qs(config.query || {}, { encode: true }).trim();
@@ -138,9 +137,9 @@ export class Hermes {
 				hermes<T>(url, req.request)
 			);
 			const response = await promiseResponse;
-			return Promise.resolve(await this.interceptResponse(response, this.successResponseInterceptors));
+			return Promise.resolve(await this.interceptResponse(response, this.successResponseInterceptors as any));
 		} catch (error) {
-			return Promise.reject(await this.interceptResponse(error, this.errorResponseInterceptors)) as any;
+			return Promise.reject(await this.interceptResponse(error, this.errorResponseInterceptors as any)) as any;
 		}
 	}
 

@@ -8,7 +8,7 @@ export class HttpError {
 
 	public constructor(response: ResponseError<unknown>) {
 		this.code = response.status;
-		this.name = this.code in HttpErrorEnum ? HttpErrorEnum[this.code] : "";
+		this.name = this.code in HttpErrorEnum ? (HttpErrorEnum as any)[this.code] : "";
 		this.message = response.statusText;
 	}
 }

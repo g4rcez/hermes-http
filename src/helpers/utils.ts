@@ -37,7 +37,9 @@ export const encodeArray = (key: string, options: Options) => (result: string[],
 export const qs = <T>(args: QueryString<T>, opt: Options = { encode: true, strict: true }) => {
 	const nonNull = Object.entries(args).reduce(
 		(acc, [key, value]: [any, any]) =>
-			(args[key] !== undefined || args[key] !== null ? { ...acc, [key]: value } : acc) as string,
+			((args as any)[key] !== undefined || (args as any)[key] !== null
+				? { ...acc, [key]: value }
+				: acc) as string,
 		{}
 	);
 

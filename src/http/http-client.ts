@@ -19,19 +19,19 @@ if (!isBrowser) {
 	global.AbortController = require("abort-controller");
 }
 
-export const hermes = async <T>(url: string, params: FetchParams): Promise<ResponseSuccess<T>> => {
-	const args = {
-		...params,
-		url,
-		statusCodeRetry: params.statusCodeRetry || statusCodeRetry,
-		controller: params.controller || new AbortController(),
-		method: params.method || "GET",
-		retries: params.retries ?? 0,
-		timeout: params.timeout || 0,
-		headers: params.headers || new HttpHeaders(),
-		retryInterval: params.retryInterval || 1000
-	};
-	return new Promise(async (resolve, reject) => {
+export const hermes = async <T>(url: string, params: FetchParams): Promise<ResponseSuccess<T>> =>
+	new Promise(async (resolve, reject) => {
+		const args = {
+			...params,
+			url,
+			statusCodeRetry: params.statusCodeRetry || statusCodeRetry,
+			controller: params.controller || new AbortController(),
+			method: params.method || "GET",
+			retries: params.retries || 0,
+			timeout: params.timeout || 0,
+			headers: params.headers || new HttpHeaders(),
+			retryInterval: params.retryInterval || 1000
+		};
 		let timer: any = null;
 		const promiseResponse = fetch(url, {
 			signal: args.controller.signal,
@@ -95,7 +95,7 @@ export const hermes = async <T>(url: string, params: FetchParams): Promise<Respo
 			return resolve(common);
 		}
 
-		common.error = response.statusText ?? response.status ?? null;
+		common.error = response.statusText || `${response.status}` || null;
 
 		if (args.retries > 1 && args.statusCodeRetry.includes(common.status)) {
 			return setTimeout(
@@ -108,7 +108,6 @@ export const hermes = async <T>(url: string, params: FetchParams): Promise<Respo
 		}
 		return reject(common);
 	});
-};
 
 hermes.get = async <T>(url: string, params: FetchParams): Promise<ResponseSuccess<T>> => hermes(url, params);
 

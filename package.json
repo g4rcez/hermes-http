@@ -15,7 +15,7 @@
   "scripts": {
     "test": "cross-env CI=1 react-scripts-ts test --env=jsdom",
     "test:watch": "react-scripts-ts test --env=jsdom",
-    "build": "rollup -c",
+    "build": "bili",
     "start": "rollup -c -w",
     "prepare": "yarn run build",
     "predeploy": "cd example && yarn install && yarn run build",
@@ -27,6 +27,7 @@
     "@rollup/plugin-url": "^4.0.2",
     "babel-core": "^6.26.3",
     "babel-runtime": "^6.26.0",
+    "bili": "^4.9.4",
     "cross-env": "^7.0.0",
     "react-scripts-ts": "^3.1.0",
     "rollup": "^2.0.6",

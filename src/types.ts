@@ -45,7 +45,7 @@ export type FetchParams = {
 	cache?: RequestCache;
 	statusCodeRetry?: number[];
 	controller?: AbortController;
-	cors?: "same-origin" | "cors" | "no-cors" | undefined;
+	cors?: "same-origin" | "cors" | "no-cors";
 	credentials?: "include" | "omit" | "same-origin";
 	headers?: HttpHeaders;
 	query?: QueryString<any>;
