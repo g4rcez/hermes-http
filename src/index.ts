@@ -1,4 +1,5 @@
-export { HermesHttp as default } from "./hermes";
+export { Hermes as default } from "./http/hermes";
+export { hermes } from "./http/single-hermes";
 export * from "./plugins";
-export * from "./helpers/http-codes";
-export { ResponseError, HttpMethods, RedirectMode, CredentialsMode, CorsMode } from "./hermes-http-types";
+export { ResponseError, HttpMethods } from "./types";
+export * from "./http/codes"
