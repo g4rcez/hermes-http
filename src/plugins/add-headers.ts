@@ -1,12 +1,7 @@
-import { RequestInterceptorParameter } from "../hermes-http-types";
+import { FetchParams, RawHeaders } from "../types";
+import HttpHeaders from "../http/http-headers";
 
-type RawHeaders = { [key: string]: string };
-export const addHeaders = (callback: (requestHeaders: RawHeaders) => RawHeaders) => async (
-	e: RequestInterceptorParameter<never>
-) => {
-	const headers = {};
-	e.headers.forEach(([value, key]) => {
-		headers[key] = value;
-	});
-	return callback(headers);
+export const addHeaders = (callback: (requestHeaders: RawHeaders) => RawHeaders) => async (e: FetchParams) => {
+	const mock = e.headers || new HttpHeaders();
+	return callback(HttpHeaders.rawHeaders(mock.get()));
 };

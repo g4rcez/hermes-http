@@ -1,5 +1,5 @@
-import { HttpErrorEnum } from "../helpers/http-codes";
-import { ResponseError } from "../hermes-http-types";
+import { HttpErrorEnum } from "../http/codes";
+import { ResponseError } from "../types";
 
 export class HttpError {
 	public code: number;
