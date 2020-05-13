@@ -1,5 +1,6 @@
+export { Hermes as default } from "./http/hermes";
 export { Hermes } from "./http/hermes";
 export { hermes } from "./http/http-client";
-export * from "./plugins";
-export { ResponseError, HttpMethods } from "./types";
-export * from "./http/codes";
+export { hermesControl, addHeaders, httpErrorInterceptor, HttpError, HttpResponseError } from "./plugins";
+export type { HermesResponse, HttpMethods } from "./types";
+export { HttpErrorCodes, statusCodeRetry } from "./http/codes";

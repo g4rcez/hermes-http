@@ -1,14 +1,18 @@
-import Hermes, { httpErrorInterceptor, HttpResponseError } from "hermes-http";
+import { HttpResponseError, hermesControl } from "hermes-http";
 
-const hermes = new Hermes({ avoidDuplicateRequests: true }).errorResponseInterceptor(httpErrorInterceptor);
+// const hermes = new Hermes({ avoidDuplicateRequests: true }).errorResponseInterceptor(httpErrorInterceptor);
 
-hermes
+hermesControl
 	.get<{ results: string[] }>("https://swapi.dev/api/people/1", {
 		query: {
 			search: "r2"
 		}
 	})
-	.then((e) => console.info(e))
+	.then(async (e) => {
+		console.info(e);
+		const data = await e.response;
+		console.log(e, data);
+	})
 	.catch((e: HttpResponseError<unknown>) => {
 		if (e.httpError !== null) {
 			console.log({ ...e });

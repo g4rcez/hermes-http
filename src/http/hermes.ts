@@ -1,19 +1,18 @@
 import { concatUrl, qs } from "../helpers/utils";
-import {
+import type {
+	Config,
 	ErrorInterceptor,
 	FetchParams,
 	HttpMethods,
 	InterceptedRequest,
-	RequestInterceptor,
-	ResponseError,
-	ResponseSuccess,
-	SuccessInterceptor,
+	Interceptor,
 	RequestConfig,
-	Config,
-	Interceptor
+	RequestInterceptor,
+	HermesResponse,
+	SuccessInterceptor
 } from "../types";
-import { hermes } from "./http-client";
 import { statusCodeRetry } from "./codes";
+import { hermes } from "./http-client";
 import userAbortError from "./user-abort-error";
 
 export class Hermes {
@@ -41,7 +40,7 @@ export class Hermes {
 		this.successResponseInterceptors = [];
 	}
 
-	private mockRequest<T>(url: string, promise: () => Promise<ResponseSuccess<T>>): Promise<ResponseSuccess<T>> {
+	private mockRequest<T>(url: string, promise: () => Promise<HermesResponse<T>>): Promise<HermesResponse<T>> {
 		if (this.configuration.avoidDuplicateRequests) {
 			if (this.requestMap.has(url)) {
 				return this.requestMap.get(url)!;
@@ -98,17 +97,14 @@ export class Hermes {
 		return { abort, request };
 	}
 
-	private async interceptResponse<T>(
-		res: ResponseSuccess<T> | ResponseError<T>,
-		interceptors: Interceptor<T>[]
-	): Promise<ResponseSuccess<T> | ResponseError<T>> {
+	private async interceptResponse<Res, I extends Interceptor<any>>(res: Res, interceptors: I[]): Promise<Res> {
 		if (interceptors.length === 0) {
 			return res;
 		}
 		let response = { ...res };
 		for (const interceptor of interceptors) {
 			try {
-				const responseMutate = await interceptor(response);
+				const responseMutate = await interceptor(response as any);
 				response = { ...response, ...responseMutate };
 			} catch (error) {
 				response = { ...response, ...error };
@@ -133,13 +129,11 @@ export class Hermes {
 		}
 
 		try {
-			let promiseResponse: Promise<ResponseSuccess<T>> = this.mockRequest(requestUrl, () =>
-				hermes<T>(url, req.request)
-			);
+			let promiseResponse = this.mockRequest(requestUrl, () => hermes<T>(url, req.request));
 			const response = await promiseResponse;
 			return Promise.resolve(await this.interceptResponse(response, this.successResponseInterceptors as any));
 		} catch (error) {
-			return Promise.reject(await this.interceptResponse(error, this.errorResponseInterceptors as any)) as any;
+			return Promise.reject(await this.interceptResponse(error, this.errorResponseInterceptors)) as any;
 		}
 	}
 
@@ -157,19 +151,19 @@ export class Hermes {
 		return this;
 	}
 
-	public async get<T>(url: string, config: RequestConfig): Promise<ResponseSuccess<T>> {
+	public async get<T>(url: string, config: RequestConfig): Promise<HermesResponse<T>> {
 		return this.request<T>(url, "GET", undefined, config);
 	}
-	public async delete<T>(url: string, config: RequestConfig): Promise<ResponseSuccess<T>> {
+	public async delete<T>(url: string, config: RequestConfig): Promise<HermesResponse<T>> {
 		return this.request<T>(url, "DELETE", undefined, config);
 	}
-	public async post<T>(url: string, body: any, config: RequestConfig): Promise<ResponseSuccess<T>> {
+	public async post<T>(url: string, body: any, config: RequestConfig): Promise<HermesResponse<T>> {
 		return this.request<T>(url, "POST", body, config);
 	}
-	public async patch<T>(url: string, body: any, config: RequestConfig): Promise<ResponseSuccess<T>> {
+	public async patch<T>(url: string, body: any, config: RequestConfig): Promise<HermesResponse<T>> {
 		return this.request<T>(url, "PATCH", body, config);
 	}
-	public async put<T>(url: string, body: any, config: RequestConfig): Promise<ResponseSuccess<T>> {
+	public async put<T>(url: string, body: any, config: RequestConfig): Promise<HermesResponse<T>> {
 		return this.request<T>(url, "PUT", body, config);
 	}
 }

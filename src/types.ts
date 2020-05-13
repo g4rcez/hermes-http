@@ -9,35 +9,37 @@ export type HttpMethods = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS
 
 export type RawHeaders = { [key: string]: Txt };
 
-export type ResponseSuccess<Body extends any> = {
-	error: string | null;
-	headers: { [key: string]: string };
-	readonly data: Body;
-	readonly ok: boolean;
-	readonly redirected: boolean;
-	readonly status: number;
-	readonly statusText: string;
-	readonly type: ResponseType;
-	readonly url: string;
-};
-
-export type ResponseError<T> = {
-	url: string;
-	data: T;
-	error: string | number;
-	headers: { [key: string]: string };
-	ok: false;
-	status: number;
-	statusText: string | null;
-};
+export type HermesResponse<Body extends any> =
+	| {
+			error: null;
+			headers: { [key: string]: string };
+			readonly data: Body;
+			readonly ok: true;
+			readonly redirected: boolean;
+			readonly status: number;
+			readonly statusText: string;
+			readonly type: ResponseType;
+			readonly url: string;
+	  }
+	| {
+			error: string | number | null;
+			headers: { [key: string]: string };
+			readonly data: Body;
+			readonly ok: false;
+			readonly redirected: boolean;
+			readonly status: number;
+			readonly statusText: string;
+			readonly type: ResponseType;
+			readonly url: string;
+	  };
 
 export type InterceptedRequest = { abort: boolean; request: FetchParams };
 
 export type RequestInterceptor = (request: FetchParams) => Promise<InterceptedRequest>;
 
-export type SuccessInterceptor<T> = (response: ResponseSuccess<T>) => Promise<ResponseSuccess<T>>;
+export type SuccessInterceptor<T> = (response: HermesResponse<T>) => Promise<HermesResponse<T>>;
 
-export type ErrorInterceptor<T> = (response: ResponseError<T>) => Promise<ResponseError<T>>;
+export type ErrorInterceptor<T> = (response: HermesResponse<T>) => Promise<HermesResponse<T>>;
 
 export type FetchParams = {
 	body?: any;
@@ -58,8 +60,8 @@ export type FetchParams = {
 };
 
 export type Interceptor<T> = (
-	response: ResponseSuccess<T> | ResponseError<T>
-) => Promise<ResponseSuccess<T> | ResponseError<T>>;
+	response: HermesResponse<T> | HermesResponse<T>
+) => Promise<HermesResponse<T> | HermesResponse<T>>;
 
 export type Config = Partial<{
 	baseUrl: string;
@@ -78,9 +80,20 @@ declare global {
 	namespace NodeJS {
 		interface Global {
 			fetch: typeof fetch;
-			Headers: any;
-			Response: any;
-			AbortController: any;
+			Headers: Headers;
+			Request: Omit<Request, "method"> & {
+				method: HttpMethods;
+			};
+			Response: Response;
+			AbortController: AbortController;
 		}
 	}
 }
+
+export type HermesClient = (<T>(url: string, params: FetchParams) => Promise<HermesResponse<T>>) & {
+	get: <T>(url: string, params: FetchParams) => Promise<HermesResponse<T>>;
+	post: <T>(url: string, body: any, params: FetchParams) => Promise<HermesResponse<T>>;
+	put: <T>(url: string, body: any, params: FetchParams) => Promise<HermesResponse<T>>;
+	patch: <T>(url: string, body: any, params: FetchParams) => Promise<HermesResponse<T>>;
+	delete: <T>(url: string, params: FetchParams) => Promise<HermesResponse<T>>;
+};
