@@ -4,7 +4,7 @@
       "DOM",
       "ESNext"
     ],
-    "outDir": "build",
+    "outDir": "dist",
     "target": "ES5",
     "declaration": true,
     "declarationMap": true,
@@ -20,9 +20,6 @@
     "strictPropertyInitialization": true,
     "forceConsistentCasingInFileNames": true
   },
-  "files": [
-    "src/index.ts"
-  ],
   "include": [
     "src/"
   ]

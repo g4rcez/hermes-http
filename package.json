@@ -25,6 +25,7 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^11.0.2",
     "@rollup/plugin-url": "^4.0.2",
+    "@types/node-fetch": "^2.5.7",
     "babel-core": "^6.26.3",
     "babel-runtime": "^6.26.0",
     "bili": "^4.9.4",
@@ -37,7 +38,7 @@
     "rollup-plugin-peer-deps-external": "^2.2.2",
     "rollup-plugin-typescript2": "^0.26.0",
     "rollup-plugin-url": "^3.0.1",
-    "typescript": "^3.8.3"
+    "typescript": "^3.9.2"
   },
   "files": [
     "dist"

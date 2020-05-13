@@ -4,15 +4,15 @@
       "DOM",
       "ESNext"
     ],
-    "outDir": "build/",
-    "target": "ES5",
+    "outDir": "dist",
+    "target": "ES6",
     "declaration": true,
     "declarationMap": true,
     "allowSyntheticDefaultImports": true,
     "allowUnusedLabels": true,
     "stripInternal": true,
     "downlevelIteration": true,
-    "declarationDir": "build",
+    "declarationDir": "dist",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "alwaysStrict": true,
@@ -24,9 +24,6 @@
     "strictPropertyInitialization": true,
     "forceConsistentCasingInFileNames": true
   },
-  "files": [
-    "src/index.ts"
-  ],
   "include": [
     "src/"
   ]
