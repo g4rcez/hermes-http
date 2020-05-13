@@ -5,8 +5,8 @@ const configuration: Configuration = {
 	input: "src/index.ts",
 	output: {
 		format: ["es", "cjs", "umd", "umd-min"],
-		moduleName: "StorageManagerJs",
-		dir: "build",
+		moduleName: "HermesHttp",
+		dir: "dist",
 	},
 	plugins: {
 		typescript2: {
