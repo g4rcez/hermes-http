@@ -1,0 +1,8 @@
+{
+  "short_name": "hermes-http",
+  "name": "hermes-http",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
