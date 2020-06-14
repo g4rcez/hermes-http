@@ -83,7 +83,7 @@ export const hermes = async <T>(
 
 		const contentType = getParser(res.headers.get("content-type"));
 		let bodyData;
-		const cloneResponse = new Response(res.body);
+		const cloneResponse = new Response(res.body).clone();
 		if (contentType === "json") {
 			bodyData = JSON.parse(await cloneResponse.text());
 		} else {
@@ -113,8 +113,8 @@ export const hermes = async <T>(
 				() =>
 					hermes(url, {
 						...request,
-						method: request.method as HttpMethods,
 						headers: hds,
+						method: request.method as HttpMethods,
 						retries: retries - 1
 					})
 						.then(resolve as any)
@@ -125,16 +125,16 @@ export const hermes = async <T>(
 		return resolve(response);
 	});
 
-hermes.get = async <T>(url: string, params: FetchParams): Promise<HermesResponse<T>> => hermes(url, params);
+hermes.get = async <T = any>(url: string, params: FetchParams): Promise<HermesResponse<T>> => hermes(url, params);
 
-hermes.post = async <T>(url: string, body: any, params: FetchParams): Promise<HermesResponse<T>> =>
+hermes.post = async <T = any>(url: string, body: any, params: FetchParams): Promise<HermesResponse<T>> =>
 	hermes(url, { ...params, body, method: "POST" });
 
-hermes.put = async <T>(url: string, body: any, params: FetchParams): Promise<HermesResponse<T>> =>
+hermes.put = async <T = any>(url: string, body: any, params: FetchParams): Promise<HermesResponse<T>> =>
 	hermes(url, { ...params, body, method: "PUT" });
 
-hermes.patch = async <T>(url: string, body: any, params: FetchParams): Promise<HermesResponse<T>> =>
+hermes.patch = async <T = any>(url: string, body: any, params: FetchParams): Promise<HermesResponse<T>> =>
 	hermes(url, { ...params, body, method: "PATCH" });
 
-hermes.delete = async <T>(url: string, params: FetchParams): Promise<HermesResponse<T>> =>
+hermes.delete = async <T = any>(url: string, params: FetchParams): Promise<HermesResponse<T>> =>
 	hermes(url, { ...params, method: "DELETE" });
