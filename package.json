@@ -1,6 +1,6 @@
 {
   "name": "hermes-http",
-  "version": "2.2.5",
+  "version": "2.2.6",
   "description": "Another wrap over fetch",
   "author": "g4rcez",
   "license": "MIT",
