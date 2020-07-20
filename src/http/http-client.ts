@@ -34,7 +34,6 @@ export const hermes = async <T>(
 		let timer: any = null;
 		const controller = params.controller || new AbortController();
 		const hds = params.headers || new HttpHeaders();
-
 		const request = new Request(url, {
 			body: parseBody(params.body),
 			cache: params.cache,
@@ -52,6 +51,8 @@ export const hermes = async <T>(
 		if (avoidDuplicateRequests && !requestMapper.has(url)) {
 			promiseResponse = fetch(request);
 			requestMapper.set(url, promiseResponse);
+		} else if (!avoidDuplicateRequests) {
+			promiseResponse = fetch(request);
 		} else {
 			promiseResponse = requestMapper.get(url);
 		}
@@ -83,11 +84,11 @@ export const hermes = async <T>(
 
 		const contentType = getParser(res.headers.get("content-type"));
 		let bodyData;
-		const cloneResponse = new Response(res.body).clone();
+		res = new Response(res.body);
 		if (contentType === "json") {
-			bodyData = JSON.parse(await cloneResponse.text());
+			bodyData = JSON.parse(await res.text());
 		} else {
-			bodyData = await cloneResponse[contentType]();
+			bodyData = await res[contentType]();
 		}
 		const headers: any = HttpHeaders.rawHeaders(res.headers);
 		const response: HermesResponse<T> = {
